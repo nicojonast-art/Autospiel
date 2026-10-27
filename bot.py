@@ -62,6 +62,7 @@ class Bot:
         self.empty_frames = 0
         self.dbg_n = 0
         self.scale = 1.0
+        self.offx = 0
         self.last_car_count = 0
         self.same_move = (None, 0)
         self.level_counted = False
@@ -71,7 +72,7 @@ class Bot:
     # ------------------------------------------------------------------ util
     def tap(self, x, y, why=""):
         """x, y in Analyse-Pixeln."""
-        X, Y = int(x * self.scale), int(y * self.scale)
+        X, Y = int(x * self.scale) + self.offx, int(y * self.scale)
         log(f"  tippe ({X},{Y}) {why}")
         if not self.cfg["dry_run"]:
             self.dev.tap(X, Y)
@@ -106,6 +107,15 @@ class Bot:
         Alle Koordinaten im Screen-Objekt sind danach Analyse-Pixel;
         self.scale rechnet sie in echte Bildschirmpixel um."""
         full = self.dev.screenshot()
+        # Emulator im Querformat: Spiel steht hochkant in der Mitte mit
+        # schwarzen Raendern -> nur den Spielbereich auswerten
+        self.offx = 0
+        if full.shape[1] > full.shape[0]:
+            colmax = full.max(axis=2).max(axis=0)
+            xs = (colmax > 20).nonzero()[0]
+            if len(xs) and (xs[-1] - xs[0]) < full.shape[1] * 0.8:
+                self.offx = int(xs[0])
+                full = full[:, xs[0]:xs[-1] + 1]
         W = full.shape[1]
         aw = self.cfg.get("analysis_width", 720)
         if W > aw:

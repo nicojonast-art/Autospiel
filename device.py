@@ -1,5 +1,9 @@
 """
-ADB-Steuerung fuer das Xiaomi (oder jedes andere Android-Geraet).
+ADB-Steuerung fuer MuMu Player (Emulator auf dem PC), das Xiaomi oder jedes
+andere Android-Geraet.
+
+MuMu Player: nichts einzurichten. Der Bot findet MuMus eigenes adb.exe und
+verbindet sich automatisch mit 127.0.0.1:16384 (MuMu 12 / MuMu 5) bzw. 7555.
 
 Voraussetzungen auf dem Xiaomi (MIUI / HyperOS):
   Einstellungen > Ueber das Telefon > 7x auf "OS-Version"/"MIUI-Version" tippen
@@ -10,9 +14,12 @@ Voraussetzungen auf dem Xiaomi (MIUI / HyperOS):
 """
 from __future__ import annotations
 
+import glob
+import os
 import re
 import shutil
 import subprocess
+import sys
 import time
 
 import cv2
@@ -20,10 +27,38 @@ import numpy as np
 
 GAME_PACKAGE = "com.grandgames.carmatch"
 
+# MuMu: erste Instanz 16384, weitere +32; aeltere MuMu-Versionen 7555
+EMULATOR_PORTS = [16384, 16416, 16448, 16480, 7555, 5555, 62001, 21503]
+
+
+def find_adb():
+    """adb im PATH, im Bot-Ordner oder aus einer MuMu-Installation."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    local = os.path.join(here, "adb.exe" if sys.platform == "win32" else "adb")
+    if os.path.exists(local):
+        return local
+    found = shutil.which("adb")
+    if found:
+        return found
+    if sys.platform == "win32":
+        pats = []
+        for drive in "CDEFG":
+            for base in (r"Program Files", r"Program Files (x86)", ""):
+                root = os.path.join(f"{drive}:\\", base) if base else f"{drive}:\\"
+                pats += [os.path.join(root, "Netease", "**", "adb.exe"),
+                         os.path.join(root, "MuMu*", "**", "adb.exe")]
+        for p in pats:
+            hits = sorted(glob.glob(p, recursive=True))
+            if hits:
+                # bevorzugt shell\adb.exe bzw. nx_main\adb.exe
+                hits.sort(key=lambda h: (("shell" not in h.lower()) and ("nx_main" not in h.lower()), len(h)))
+                return hits[0]
+    return "adb"
+
 
 class Device:
     def __init__(self, serial: str | None = None, adb: str | None = None):
-        self.adb = adb or shutil.which("adb") or "adb"
+        self.adb = adb or find_adb()
         self.serial = serial
         self._raw_ok = True
         self.size = None
@@ -40,13 +75,35 @@ class Device:
         return r.stdout.decode("utf-8", "ignore")
 
     # -------------------------------------------------------------- Verbindung
+    def _devices(self):
+        out = subprocess.run([self.adb, "devices"], capture_output=True, text=True, timeout=20).stdout
+        return [l.split()[0] for l in out.splitlines()[1:] if l.strip().endswith("device")]
+
     def connect(self):
-        out = subprocess.run([self.adb, "devices"], capture_output=True, text=True).stdout
-        devs = [l.split()[0] for l in out.splitlines()[1:] if l.strip().endswith("device")]
+        print(f"adb: {self.adb}")
+        try:
+            devs = self._devices()
+        except FileNotFoundError:
+            raise RuntimeError("adb nicht gefunden. MuMu Player installieren oder adb.exe "
+                               "in den Bot-Ordner legen.")
+        if self.serial and ":" in self.serial and self.serial not in devs:
+            subprocess.run([self.adb, "connect", self.serial], capture_output=True, timeout=10)
+            devs = self._devices()
+        if not devs:
+            # Emulator (MuMu) automatisch verbinden
+            for port in EMULATOR_PORTS:
+                r = subprocess.run([self.adb, "connect", f"127.0.0.1:{port}"],
+                                   capture_output=True, text=True, timeout=10)
+                if "connected" in r.stdout and "cannot" not in r.stdout:
+                    time.sleep(1)
+                    devs = self._devices()
+                    if devs:
+                        print(f"Emulator verbunden: 127.0.0.1:{port}")
+                        break
         if not devs:
             raise RuntimeError(
-                "Kein Android-Geraet gefunden. USB-Kabel/WLAN-Debugging pruefen "
-                "und am Handy 'USB-Debugging zulassen' bestaetigen.")
+                "Kein Android-Geraet gefunden. Ist MuMu Player gestartet? "
+                "(Beim Handy: USB-Debugging pruefen und 'zulassen' bestaetigen.)")
         if self.serial is None:
             if len(devs) > 1:
                 print(f"Mehrere Geraete: {devs} - nehme {devs[0]} (mit --serial waehlen)")

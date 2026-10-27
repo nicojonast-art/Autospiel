@@ -38,6 +38,19 @@ verlorenen Level erneut.
    ausgegeben** (außer mit `--allow-coins`). Keine Leben → 5 Minuten warten.
    Werbung → warten, „X/Skip/Close“ suchen, sonst Zurück-Taste.
 
+## Am PC mit MuMu Player (am einfachsten)
+
+1. MuMu Player starten, **Car Match** darin installieren (Play Store) und einmal öffnen.
+2. Diesen Ordner herunterladen (grüner Knopf **Code → Download ZIP**) und entpacken.
+3. **`start.bat`** doppelklicken.
+   - Fehlt Python, wird es automatisch installiert (über winget).
+   - ADB muss nicht installiert werden: der Bot nimmt das `adb.exe` von MuMu
+     und verbindet sich selbst mit dem Emulator (127.0.0.1:16384 bzw. 7555).
+4. Der Bot startet das Spiel in MuMu und spielt los. Stoppen: Fenster schließen oder Strg + C.
+
+Tipp: In MuMu unter *Einstellungen → Anzeige* das **Handy-Format (Hochkant)** wählen,
+z. B. 1080×1920 – dann ist die Erkennung am genauesten.
+
 ## Einrichtung am Xiaomi (einmalig)
 
 1. *Einstellungen → Über das Telefon* → 7× auf **OS-Version** (bzw. MIUI-Version) tippen.
