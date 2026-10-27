@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+debug/
+*_erkannt.jpg
+*.png
+.venv/
+venv/

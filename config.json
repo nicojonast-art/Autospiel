@@ -1,0 +1,16 @@
+{
+  "serial": null,
+  "max_levels": 0,
+  "think_time": 2.5,
+  "after_tap": 0.45,
+  "stable_wait": 0.25,
+  "use_boosters": true,
+  "booster_order": [
+    "super_undo",
+    "magnet",
+    "shuffle"
+  ],
+  "allow_coins": false,
+  "restart_after_unknown": 90,
+  "analysis_width": 720
+}
