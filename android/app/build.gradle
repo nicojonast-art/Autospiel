@@ -16,8 +16,9 @@ android {
         versionCode buildNumber
         versionName "1.${buildNumber}"
         ndk {
-            // Xiaomi und fast alle aktuellen Handys sind arm64
-            abiFilters 'arm64-v8a'
+            // Xiaomi und fast alle aktuellen Handys sind arm64.
+            // Fuer Emulatoren am PC (MuMu & Co.): gradle ... -Pabi=x86_64
+            abiFilters((project.findProperty('abi') ?: 'arm64-v8a').toString())
         }
     }
 
