@@ -207,6 +207,8 @@ public class MainActivity extends AppCompatActivity implements Bridge.Listener {
         try {
             JSONObject cfg = new JSONObject();
             cfg.put("game", game);
+            String pkg = Bridge.resolvePackage(this, game);
+            cfg.put("package", pkg != null ? pkg : Bridge.packageFor(game));
             cfg.put("use_boosters", swBoosters.isChecked());
             cfg.put("allow_coins", swCoins.isChecked());
             config = cfg.toString();
@@ -225,7 +227,8 @@ public class MainActivity extends AppCompatActivity implements Bridge.Listener {
     }
 
     private void launchGame() {
-        Intent launch = getPackageManager().getLaunchIntentForPackage(Bridge.packageFor(game));
+        String pkg = Bridge.resolvePackage(this, game);
+        Intent launch = pkg == null ? null : getPackageManager().getLaunchIntentForPackage(pkg);
         if (launch != null) {
             launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             startActivity(launch);
@@ -305,7 +308,7 @@ public class MainActivity extends AppCompatActivity implements Bridge.Listener {
     }
 
     private boolean isGameInstalled() {
-        return getPackageManager().getLaunchIntentForPackage(Bridge.packageFor(game)) != null;
+        return Bridge.resolvePackage(this, game) != null;
     }
 
     private boolean isBatteryFree() {

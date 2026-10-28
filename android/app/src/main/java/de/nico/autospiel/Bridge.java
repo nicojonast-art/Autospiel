@@ -1,5 +1,9 @@
 package de.nico.autospiel;
 
+import android.content.Context;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.os.Handler;
 import android.os.Looper;
 
@@ -21,6 +25,37 @@ public final class Bridge {
     /** Paketname zum Spiel-Kuerzel aus den Einstellungen ("yarn" / "car"). */
     static String packageFor(String game) {
         return "car".equals(game) ? CAR_PACKAGE : YARN_PACKAGE;
+    }
+
+    /**
+     * Tatsaechlich installiertes Paket des Spiels. Zuerst der bekannte
+     * Paketname, sonst wird unter allen startbaren Apps nach dem Namen gesucht
+     * (z.B. "Yarn Loop"). Rueckgabe null, wenn nichts gefunden wurde.
+     */
+    static String resolvePackage(Context ctx, String game) {
+        PackageManager pm = ctx.getPackageManager();
+        String known = packageFor(game);
+        if (pm.getLaunchIntentForPackage(known) != null) {
+            return known;
+        }
+        String wanted = "car".equals(game) ? "car match" : "yarn loop";
+        String wantedPkg = "car".equals(game) ? "carmatch" : "yarn";
+        Intent main = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER);
+        try {
+            for (ResolveInfo ri : pm.queryIntentActivities(main, 0)) {
+                String pkg = ri.activityInfo.packageName;
+                if (pkg.equals(ctx.getPackageName())) {
+                    continue;
+                }
+                CharSequence label = ri.loadLabel(pm);
+                String l = label == null ? "" : label.toString().toLowerCase(Locale.ROOT);
+                if (l.contains(wanted) || pkg.toLowerCase(Locale.ROOT).contains(wantedPkg)) {
+                    return pkg;
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
     }
 
     /** Wird von der Oberflaeche beobachtet. */
