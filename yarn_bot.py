@@ -50,6 +50,9 @@ class YarnBot:
         self.last_taps = []
         self.futile = set()          # Ablage-Spulen, die nachweislich nichts nehmen
         self.last_rack_move = None
+        self.last_col_move = None
+        self.blocked_cols = set()     # Spalten, deren Antippen nichts bewirkt (z.B. verbunden)
+        self.prev_rack_n = None
         self.prev_cells = None
 
     # ------------------------------------------------------------------ Hilfen
@@ -90,6 +93,9 @@ class YarnBot:
         self.start_cells = 0
         self.futile = set()
         self.last_rack_move = None
+        self.last_col_move = None
+        self.blocked_cols = set()
+        self.prev_rack_n = None
         self.prev_cells = None
         self.lattice = None
         self.palette = None
@@ -202,11 +208,28 @@ class YarnBot:
                     if (c, n) not in self.futile:
                         self.log(f"Ablage-Spule {self._cname(scr, c)} {n} nimmt nichts – bleibt liegen")
                     self.futile.add((c, n))
+        rack_n = sum(1 for r in rack if r is not None)
+        if self.prev_cells is not None:
+            if n_cells < self.prev_cells - 2 or (self.prev_rack_n is not None and rack_n != self.prev_rack_n):
+                self.blocked_cols.clear()
+            elif self.last_col_move is not None and n_cells >= self.prev_cells - 1:
+                i, c, n = self.last_col_move
+                if i < len(columns) and columns[i] and columns[i][0][0] == c and columns[i][0][1] == n:
+                    if i not in self.blocked_cols:
+                        self.log(f"Spalte {i + 1} reagiert nicht (verbunden?) – lasse sie aus")
+                    self.blocked_cols.add(i)
+        for i in self.blocked_cols:
+            if i < len(columns) and columns[i]:
+                c0 = columns[i][0]
+                # erfundene Verbindung ohne Partner -> fuer den Loeser nicht antippbar
+                columns[i] = [(c0[0], c0[1], 900 + i)] + list(columns[i][1:])
         if self.futile:
             rack = [(S.UNKNOWN_COLOR, r[1], -1) if r is not None and (r[0], r[1]) in self.futile else r
                     for r in rack]
         self.prev_cells = n_cells
+        self.prev_rack_n = rack_n
         self.last_rack_move = None
+        self.last_col_move = None
         self.log("Sehe: " + self._describe(scr, grid, columns, rack)
                  + f" ({getattr(self, '_timing', '')})")
         t_plan = time.time()
@@ -241,6 +264,8 @@ class YarnBot:
             x, y = taps[key]
             if sent == 0 and mv.source == "rack" and mv.partner is None:
                 self.last_rack_move = (mv.color, mv.count)
+            if sent == 0 and mv.source == "col" and mv.partner is None:
+                self.last_col_move = (mv.index, mv.color, mv.count)
             what = "Ablage" if mv.source == "rack" else f"Spalte {mv.index + 1}"
             if mv.partner is not None:
                 what += f" + Partner ({self._cname(scr, mv.partner[2])} {mv.partner[3]})"
