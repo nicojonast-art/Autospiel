@@ -180,13 +180,18 @@ class YarnBot:
             key = (mv.source, mv.index)
             if key not in taps:
                 break
-            if mv.source == "col" and mv.index in used_cols:
+            if mv.source == "col" and (mv.index in used_cols or
+                                       (mv.partner and mv.partner[1] in used_cols)):
                 time.sleep(0.6)       # naechste Spule rutscht nach vorne
             x, y = taps[key]
             what = "Ablage" if mv.source == "rack" else f"Spalte {mv.index + 1}"
+            if mv.partner is not None:
+                what += f" + Partner ({self._cname(scr, mv.partner[2])} {mv.partner[3]})"
             self.tap(x, y, f"{what}: Farbe {self._cname(scr, mv.color)} ({mv.count})")
             if mv.source == "col":
                 used_cols.add(mv.index)
+                if mv.partner is not None:
+                    used_cols.add(mv.partner[1])
             sent += 1
             time.sleep(0.45)
         time.sleep(1.0)
@@ -212,7 +217,8 @@ class YarnBot:
             count = sp.count if sp.count is not None else default
             if not front and sp.count is None:
                 count = default
-            return (color, count)
+            link = getattr(sp, "link", None)
+            return (color, count, -1 if link is None else int(link))
 
         columns, taps = [], {}
         for i, col in enumerate(scr.columns):

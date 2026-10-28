@@ -88,6 +88,7 @@ class Spool:
     y: int                        # Tipp-Punkt
     lab: Optional[tuple] = None
     where: str = ""               # "col0".. / "rack2"
+    link: Optional[int] = None    # verbundene Spulen (Doppelspule) teilen dieselbe Nummer
 
 
 @dataclass
@@ -118,9 +119,48 @@ _GW, _GH = 20, 28
 
 def read_number(disc_bgr):
     """Zahl auf einer Spule. disc_bgr ist auf Referenzgroesse (130x90) skaliert.
-    Rueckgabe: (zahl oder None, sicherheit 0..1)."""
+    Rueckgabe: (zahl oder None, sicherheit 0..1).
+    Vordere Spulen: weisse Ziffern. Hintere Spulen zeigen ihre Zahl blass
+    (halb durchsichtig) - dafuer gibt es zwei Ersatz-Masken."""
     hsv = cv2.cvtColor(disc_bgr, cv2.COLOR_BGR2HSV)
     m = ((hsv[..., 2] > 238) & (hsv[..., 1] < 40)).astype(np.uint8)
+    best = _read_mask(m)
+    if best[0] is not None and best[1] >= 0.25:
+        return best
+    for m2 in _faint_masks(disc_bgr):
+        r = _read_mask(m2)
+        if r[0] is not None and (best[0] is None or r[1] > best[1]):
+            best = r
+    return best
+
+
+def _faint_masks(disc_bgr):
+    H, W = disc_bgr.shape[:2]
+    lab = cv2.cvtColor(disc_bgr, cv2.COLOR_BGR2LAB).astype(np.int16)
+    L = lab[..., 0]
+    chroma = np.hypot(lab[..., 1] - 128, lab[..., 2] - 128)
+    core = np.zeros((H, W), bool)
+    core[int(H * 0.15):int(H * 0.85), int(W * 0.12):int(W * 0.88)] = True
+    ring = L[core]
+    Lmed = float(np.median(ring))
+    cmed = float(np.median(chroma[core]))
+    out = []
+    # 1) heller und blasser als die Scheibe (farbige / schwarze Spulen)
+    m1 = core & (L > Lmed + 15) & (chroma < max(cmed * 0.8, 12) + 6)
+    out.append(m1.astype(np.uint8))
+    # 2) innerhalb der dunklen Umrandung der Ziffern (weisse Spulen)
+    dark = (core & (L < Lmed - 45)).astype(np.uint8)
+    if dark.any():
+        filled = dark.copy()
+        ff = np.zeros((H + 2, W + 2), np.uint8)
+        inv = (1 - filled).astype(np.uint8)
+        cv2.floodFill(inv, ff, (0, 0), 0)
+        holes = inv.astype(bool) & ~dark.astype(bool)
+        out.append((holes & core).astype(np.uint8))
+    return out
+
+
+def _read_mask(m):
     n, lab, st, _ = cv2.connectedComponentsWithStats(m)
     H, W = m.shape
     comps = []
@@ -128,9 +168,21 @@ def read_number(disc_bgr):
         x, y, w, h, a = st[i]
         if H * 0.33 <= h <= H * 0.8 and a >= 40 and w <= W * 0.45 and abs((y + h / 2) - H / 2) < H * 0.25:
             comps.append((x, y, w, h, i))
-    if not comps or len(comps) > 3:
+    if not comps or len(comps) > 4:
         return None, 0.0
     comps.sort()
+    # Spulen tragen hoechstens zweistellige Zahlen - ueberzaehlige Flecken
+    # (Glanzlichter) weglassen und die beste Lesart nehmen
+    best = (None, 0.0)
+    subsets = [comps] if len(comps) <= 2 else [comps[i:i + 2] for i in range(len(comps) - 1)]
+    for sub in subsets:
+        r = _read_digits(lab, sub)
+        if r[0] is not None and r[0] < 100 and (best[0] is None or r[1] > best[1]):
+            best = r
+    return best
+
+
+def _read_digits(lab, comps):
     digits, worst = [], 1.0
     for x, y, w, h, i in comps:
         g = cv2.resize((lab[y:y + h, x:x + w] == i).astype(np.float32), (_GW, _GH),
@@ -231,6 +283,112 @@ def _autocorr(p, lo, hi):
     return bl
 
 
+def _comb_score(prof, w, n):
+    p = w / n
+    tol = max(1, int(round(p * 0.08)))
+    hits, mids = [], []
+    for k in range(1, n):
+        pos = int(round(k * p))
+        a, b = max(0, pos - tol), min(len(prof), pos + tol + 1)
+        if a < b:
+            hits.append(float(prof[a:b].max()))
+    for k in range(n):
+        pos = int(round((k + 0.5) * p))
+        a, b = max(0, pos - tol), min(len(prof), pos + tol + 1)
+        if a < b:
+            mids.append(float(prof[a:b].mean()))
+    if not hits:
+        return -1e9
+    return float(np.median(hits)) - (float(np.mean(mids)) if mids else 0.0)
+
+
+def _pitch_from_gaps(reg, bg, pmin, pmax):
+    """Spaltenabstand grob schaetzen: In jeder Bildzeile die Abstaende
+    zwischen benachbarten dunklen Fugen messen (nur wo dazwischen Maschen
+    sind). Der haeufigste Abstand ist eine Spaltenbreite - Vielfache kommen
+    so gar nicht erst vor."""
+    d = np.abs(reg - bg).sum(axis=2)
+    dark = reg.max(axis=2) < 45
+    content = d > 60
+    gaps = []
+    for y in range(0, reg.shape[0], 2):
+        xs = np.flatnonzero(dark[y])
+        if len(xs) < 2:
+            continue
+        brk = np.flatnonzero(np.diff(xs) > 1)
+        starts = np.r_[xs[0], xs[brk + 1]]
+        ends = np.r_[xs[brk], xs[-1]]
+        ok = (ends - starts) < 10
+        cents = ((starts + ends) / 2.0)[ok]
+        for a, b in zip(cents[:-1], cents[1:]):
+            g = b - a
+            if pmin <= g <= pmax and content[y, int(a) + 3:int(b) - 2].mean() > 0.9:
+                gaps.append(g)
+    if len(gaps) < 20:
+        return None
+    gaps = np.asarray(gaps)
+    hist, edges = np.histogram(gaps, bins=np.arange(int(pmin), int(pmax) + 2, 1))
+    mode = edges[int(np.argmax(hist))]
+    sel = gaps[(gaps > mode - 3) & (gaps < mode + 4)]
+    return float(np.median(sel))
+
+
+def _pitch_phase(prof, pmin, pmax, step=0.25):
+    """Spaltenabstand und Lage der Naehte direkt aus dem Profil der dunklen
+    Fugen - unabhaengig davon, ob am Rand einzelne Maschen fehlen.
+    Gibt (px, phase) zurueck, phase = Lage einer Naht ab Bildanfang."""
+    n = len(prof)
+    if n < 3 * pmin:
+        return None, None
+    tol = 2
+    pad = np.pad(prof, tol, mode="edge")
+    pf = np.max(np.stack([pad[i:i + n] for i in range(2 * tol + 1)]), axis=0)
+    results = []
+    for px in np.arange(pmin, min(pmax, n / 2.0) + 1e-6, step):
+        best_ph, best_sc = 0, -1e9
+        for ph in range(int(px)):
+            seams = np.arange(ph, n, px)
+            seams = seams[seams <= n - 1]          # float-arange kann n erreichen
+            mids = seams + px / 2
+            mids = mids[mids <= n - 1]
+            if len(seams) < 3 or len(mids) < 2:
+                continue
+            sc = float(np.median(pf[seams.astype(int)])) - float(np.mean(prof[mids.astype(int)]))
+            if sc > best_sc:
+                best_sc, best_ph = sc, ph
+        results.append((px, best_ph, best_sc))
+    if not results:
+        return None, None
+    top = max(r[2] for r in results)
+    if top < 0.05:
+        return None, None
+    # Vielfache des echten Abstands passen auch -> kleinsten guten nehmen,
+    # danach im Umkreis von 10 % den besten
+    for px, ph, sc in results:
+        if sc >= 0.6 * top:
+            near = [r for r in results if px * 0.95 <= r[0] <= px * 1.1]
+            bp = max(near, key=lambda r: r[2])
+            return float(bp[0]), float(bp[1])
+    return None, None
+
+
+def _best_count_all(prof, w, pmin, pmax):
+    """Spaltenzahl: jede moegliche Anzahl pruefen (Naehte auf dem Raster?).
+    Ein Vielfaches des echten Abstands (z.B. 3 Spalten auf einmal) passt auch
+    gut - deshalb die GROESSTE Spaltenzahl nehmen, die fast so gut passt wie
+    die beste."""
+    lo = max(1, int(w / pmax))
+    hi = max(lo, int(np.ceil(w / pmin)))
+    scores = {n: _comb_score(prof, w, n) for n in range(max(2, lo), hi + 1)}
+    if not scores:
+        return 1
+    best = max(scores.values())
+    if best <= 0:
+        return max(1, int(round(w / ((pmin + pmax) / 2))))
+    good = [n for n, sc in scores.items() if sc >= 0.5 * best and sc >= 0.12]
+    return max(good)
+
+
 def _best_count(prof, w, px):
     """Spaltenzahl genau bestimmen: Die Autokorrelation liefert den Abstand nur
     auf ein paar Prozent genau - bei 20 Spalten reicht das schon fuer eine
@@ -291,9 +449,22 @@ def detect_lattice(img, belt) -> Optional[Lattice]:
     sub = reg[y0:y1, x0:x1]
     dark = (sub.max(axis=2) < 45).astype(np.float32)
     prof = dark.mean(axis=0)
-    px = _autocorr(prof, 14 * s, 60 * s)
-    nx = _best_count(prof, w, px)
-    px = w / nx
+    px_est = _pitch_from_gaps(reg, bg, 18 * s, 110 * s)
+    px, phase = (None, None)
+    if px_est is not None:
+        px, phase = _pitch_phase(prof, px_est * 0.96, px_est * 1.04, step=0.05)
+    if px is None:
+        nx = _best_count_all(prof, w, 14 * s, 100 * s)
+        px = w / nx
+    else:
+        # Rasterlinie links an der Bildkante ausrichten
+        first = phase - px * np.floor((phase + 0.3 * px) / px)
+        x0 = int(round(x0 + first))
+        nx = max(1, int(round((x1 - x0) / px)))
+        # Bei vollstaendigem Rand ist die Gesamtbreite am genauesten
+        exact = (x1 - x0) / nx
+        if abs(exact - px) < 0.03 * px:
+            px = exact
     # Zeilenabstand: im Spiel immer ca. 0.945 * Spaltenabstand (3D-Ansicht)
     py = px * 0.945
     # Unter der untersten Reihe sieht man deren 3D-Seitenflaeche (knapp eine
@@ -572,25 +743,45 @@ def _spool_lab(body_bgr):
     return tuple(float(v) for v in m)
 
 
-def _spool_at(img, belt, cx, disc_y, body_y, bg, where):
+def _disc_side(img, belt, cx, disc_y):
+    """Pixel links und rechts neben der Zahl auf der Spulenscheibe."""
+    s = belt.s
+    parts = []
+    for sgn in (-1, 1):
+        a, b = sorted((int(cx + sgn * 42 * s), int(cx + sgn * 56 * s)))
+        parts.append(img[int(disc_y - 8 * s):int(disc_y + 8 * s), a:b].reshape(-1, 3))
+    return np.vstack(parts)
+
+
+def _spool_at(img, belt, cx, disc_y, body_y, bg, where, occl_y=None):
     s = belt.s
     H, W = img.shape[:2]
-    # Ist ueberhaupt eine Spule da? -> Koerper muss sich vom Hintergrund abheben
     bx0, bx1 = int(cx - 28 * s), int(cx + 28 * s)
     by0, by1 = int(body_y - 22 * s), int(body_y + 22 * s)
-    body = img[max(0, by0):min(H, by1), max(0, bx0):min(W, bx1)].astype(np.int16)
+    occluded = occl_y is not None and by1 > occl_y
+    if occluded:
+        # Koerper hinter den Booster-Knoepfen: Farbe von der Scheibe nehmen
+        body = _disc_side(img, belt, cx, disc_y).astype(np.int16)
+    else:
+        body = img[max(0, by0):min(H, by1), max(0, bx0):min(W, bx1)].astype(np.int16)
     if body.size == 0:
         return None
     d = np.abs(body.reshape(-1, 3) - bg).sum(axis=1)
-    if (d > 60).mean() < 0.45:
-        return None
     disc = _disc(img, belt, cx, disc_y)
     if disc is None:
         return None
     num, conf = read_number(disc)
+    if (d > 60).mean() < 0.45:
+        # graue Spulen sehen dem Hintergrund aehnlich - dann zaehlt die lesbare Zahl
+        if num is None or conf < 0.4 or (d > 25).mean() < 0.6:
+            return None
     if num is None and _is_surprise(disc):
         return Spool(UNKNOWN, None, int(cx), int(disc_y + 20 * s), None, where)
-    lab = _spool_lab(body.astype(np.uint8))
+    if occluded:
+        lab3 = np.median(_lab(body.astype(np.uint8)), axis=0)
+        lab = tuple(float(v) for v in (BLACK_LAB if lab3[0] < 50 else lab3))
+    else:
+        lab = _spool_lab(body.astype(np.uint8))
     if num is not None and conf < 0.25:
         num = None
     return Spool(None, num, int(cx), int(disc_y + 20 * s), lab, where)
@@ -627,14 +818,60 @@ def read_spools(img, belt, bg):
             by = belt.Yb(REF["spool_body_y"] + REF["spool_dy"] * row)
             if by + 20 * s > bottom:
                 break
-            sp = _spool_at(img, belt, cx, dy, by, bg, f"col{k}")
+            sp = _spool_at(img, belt, cx, dy, by, bg, f"col{k}", occl_y=bottom - 140 * s)
             if sp is None:
                 break
             if row > 0:
                 sp.where = f"col{k}+{row}"
             col.append(sp)
         columns.append(col)
+    _find_links(img, belt, columns, rack, bg, bottom - 140 * belt.s)
     return columns, rack, bottom
+
+
+def _bar_at(img, bg, pts, r=4):
+    """Liegt an allen Punkten ein farbiger Verbindungsstab (kein Hintergrund)?"""
+    H, W = img.shape[:2]
+    for x, y in pts:
+        x, y = int(round(x)), int(round(y))
+        if not (r <= x < W - r and r <= y < H - r):
+            return False
+        p = img[y - r:y + r + 1, x - r:x + r + 1].astype(np.int16)
+        if float((np.abs(p - bg).sum(axis=2) > 60).mean()) < 0.75:
+            return False
+    return True
+
+
+def _find_links(img, belt, columns, rack, bg, max_y=1e9):
+    """Doppelspulen: zwei Spulen sind mit einem farbigen Stab verbunden
+    (waagerecht oder schraeg zur Nachbarspalte, in der Ablage waagerecht).
+    Tippt man eine an, fahren beide zusammen los."""
+    s = belt.s
+    off = 12 * s                    # Stab sitzt knapp unter der Zahl
+    lid = 0
+    for k in range(len(columns) - 1):
+        a, b = columns[k], columns[k + 1]
+        for ra, spa in enumerate(a):
+            for rb, spb in enumerate(b):
+                if abs(ra - rb) > 1 or spa.link is not None or spb.link is not None:
+                    continue
+                ya, yb = spa.y + off, spb.y + off
+                # spool.y ist der Tipp-Punkt (Zahl) - Stab beginnt am Scheibenrand
+                pts = [(spa.x + (spb.x - spa.x) * t, ya + (yb - ya) * t) for t in (0.4, 0.5, 0.6)]
+                if max(p[1] for p in pts) > max_y:
+                    continue            # hinter den Booster-Knoepfen nicht beurteilbar
+                if _bar_at(img, bg, pts):
+                    spa.link = spb.link = lid
+                    lid += 1
+    for j in range(len(rack) - 1):
+        a, b = rack[j], rack[j + 1]
+        if a is None or b is None or a.link is not None:
+            continue
+        ya, yb = a.y + off, b.y + off
+        pts = [(a.x + (b.x - a.x) * t, ya + (yb - ya) * t) for t in (0.45, 0.5, 0.55)]
+        if _bar_at(img, bg, pts):
+            a.link = b.link = lid
+            lid += 1
 
 
 # ---------------------------------------------------------------------------

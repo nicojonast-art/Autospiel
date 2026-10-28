@@ -78,6 +78,30 @@ def run_lap(grid, color, count, lane_list=None):
     return taken, count
 
 
+def run_lap_multi(grid, spools, lane_list=None):
+    """Mehrere Spulen direkt hintereinander (Doppelspule): an jeder Bahn
+    kommt zuerst die vordere, dann die hintere vorbei. Veraendert grid!
+    spools: [(farbe, zahl), ...]. Rueckgabe: (genommen gesamt, [reste])."""
+    if lane_list is None:
+        lane_list = lanes(*grid.shape)
+    rest = [10 ** 6 if n is None else n for _, n in spools]
+    taken = 0
+    for kind, i in lane_list:
+        if not any(r > 0 for r in rest):
+            break
+        for k, (color, _) in enumerate(spools):
+            if rest[k] <= 0:
+                continue
+            cell = front_cell(grid, kind, i)
+            if cell is None:
+                break
+            if grid[cell] == color:
+                grid[cell] = -1
+                rest[k] -= 1
+                taken += 1
+    return taken, rest
+
+
 # ---------------------------------------------------------------------------
 @dataclass
 class Move:
@@ -85,6 +109,13 @@ class Move:
     index: int           # Spaltennummer bzw. Ablageplatz
     color: int
     count: int | None
+    partner: tuple | None = None   # Doppelspule: (source, index, color, count)
+
+    def spools(self):
+        out = [(self.color, self.count)]
+        if self.partner is not None:
+            out.append((self.partner[2], self.partner[3]))
+        return out
 
 
 class State:
@@ -102,18 +133,57 @@ class State:
         return (self.grid.tobytes(), self.cols, tuple(sorted(r for r in self.rack if r)))
 
 
+def _norm(item):
+    """(farbe, zahl) oder (farbe, zahl, verbindung) -> immer 3 Werte."""
+    if item is None:
+        return None
+    if len(item) == 2:
+        return (item[0], item[1], -1)
+    lid = item[2]
+    return (item[0], item[1], -1 if lid is None else int(lid))
+
+
 def moves(st):
     out = []
-    for i, col in enumerate(st.cols):
-        if col:
-            color, count = col[0]
-            if color != UNKNOWN_COLOR:
-                out.append(Move("col", i, color, count))
+    fronts = {i: col[0] for i, col in enumerate(st.cols) if col}
+    for i, (color, count, lid) in fronts.items():
+        if color == UNKNOWN_COLOR:
+            continue
+        if lid >= 0:
+            # Doppelspule: nur antippbar, wenn der Partner auch vorne steht
+            js = [j for j, f in fronts.items() if j != i and f[2] == lid]
+            if not js or js[0] < i:
+                continue
+            j = js[0]
+            c2, n2, _ = fronts[j]
+            if c2 == UNKNOWN_COLOR:
+                continue
+            out.append(Move("col", i, color, count, ("col", j, c2, n2)))
+        else:
+            out.append(Move("col", i, color, count))
     seen = set()
     for j, sp in enumerate(st.rack):
-        if sp and sp[0] != UNKNOWN_COLOR and sp not in seen:
-            seen.add(sp)
-            out.append(Move("rack", j, sp[0], sp[1]))
+        if not sp or sp[0] == UNKNOWN_COLOR:
+            continue
+        color, count, lid = sp
+        if lid >= 0:
+            ks = [k for k, o in enumerate(st.rack) if o and k != j and o[2] == lid]
+            if ks:
+                if ks[0] < j:
+                    continue
+                o = st.rack[ks[0]]
+                if o[0] == UNKNOWN_COLOR:
+                    continue
+                key = (sp, o)
+                if key in seen:
+                    continue
+                seen.add(key)
+                out.append(Move("rack", j, color, count, ("rack", ks[0], o[0], o[1])))
+                continue
+        if (color, count) in seen:
+            continue
+        seen.add((color, count))
+        out.append(Move("rack", j, color, count))
     return out
 
 
@@ -121,17 +191,27 @@ def apply(st, mv, lane_list):
     grid = st.grid.copy()
     cols = list(st.cols)
     rack = list(st.rack)
-    if mv.source == "col":
-        cols[mv.index] = cols[mv.index][1:]
-    else:
-        rack[mv.index] = None
-    taken, rest = run_lap(grid, mv.color, mv.count, lane_list)
+    parts = [(mv.source, mv.index)]
+    if mv.partner is not None:
+        parts.append((mv.partner[0], mv.partner[1]))
+    lid = -1
+    for src, idx in parts:
+        if src == "col":
+            lid = max(lid, cols[idx][0][2])
+            cols[idx] = cols[idx][1:]
+        else:
+            lid = max(lid, rack[idx][2])
+            rack[idx] = None
+    sp = mv.spools()
+    taken, rests = run_lap_multi(grid, sp, lane_list)
     dead = False
     if taken == 0 and mv.source == "rack":
         dead = True          # nutzlose Runde - Spule kaeme nur zurueck
-    if rest and rest > 0:
+    left = [(sp[k][0], rests[k]) for k in range(len(sp)) if rests[k] > 0]
+    keep_link = lid if len(left) == 2 else -1
+    for color, rest in left:
         if None in rack:
-            rack[rack.index(None)] = (mv.color, rest)
+            rack[rack.index(None)] = (color, rest, keep_link)
         else:
             dead = True
     return State(grid, tuple(cols), tuple(rack), st.path + (mv,), st.removed + taken, dead)
@@ -168,7 +248,15 @@ def evaluate(st, lane_list):
     score = st.removed * 10.0
     score -= RACK_PENALTY[min(len(rack), RACK_SIZE)]
     exposed = exposed_by_color(st.grid, lane_list)
-    for color, count in rack:
+    remaining = {}
+    for v in st.grid.ravel():
+        if v >= 0:
+            remaining[int(v)] = remaining.get(int(v), 0) + 1
+    for color, count, _lid in rack:
+        # Farbe fertig, Spule bleibt fuer immer liegen -> Platz ist verloren
+        if color >= 0 and remaining.get(color, 0) == 0:
+            score -= 400.0
+            continue
         # Ablage-Spule, die gerade gar nichts nehmen kann, blockiert ihren Platz
         if exposed.get(color, 0) == 0:
             score -= 60.0
@@ -179,13 +267,13 @@ def evaluate(st, lane_list):
     best_now = 0
     for mv in moves(st):
         g = st.grid.copy()
-        t, rest = run_lap(g, mv.color, mv.count, lane_list)
-        bonus = t + (15 if (rest is not None and rest <= 0) else 0)
+        t, rests = run_lap_multi(g, mv.spools(), lane_list)
+        bonus = t + 15 * sum(1 for r in rests if r <= 0)
         best_now = max(best_now, bonus)
     score += best_now * 2.0
     # Farben, fuer die keine Spule mehr bekannt ist, aber Maschen da sind
     colors_left = set(int(v) for v in np.unique(st.grid) if v >= 0)
-    have = set(c for col in st.cols for c, _ in col) | set(r[0] for r in rack)
+    have = set(c[0] for col in st.cols for c in col) | set(r[0] for r in rack)
     unknown_spools = UNKNOWN_COLOR in have
     for c in colors_left:
         if c not in have and not unknown_spools:
@@ -201,14 +289,14 @@ class Plan:
     dead_end: bool
 
 
-def plan(grid, columns, rack, time_limit=2.0, beam_width=60, depth=14):
+def plan_beam(grid, columns, rack, time_limit=2.0, beam_width=60, depth=14):
     """grid: np-Array (-1 leer, sonst Farb-Index);
     columns: Liste von Listen [(farbe, zahl), ...] vorderste zuerst;
     rack: Liste (Laenge 5) mit (farbe, zahl) oder None."""
     grid = np.asarray(grid, np.int16)
     lane_list = lanes(*grid.shape)
-    rk = list(rack) + [None] * (RACK_SIZE - len(rack))
-    st0 = State(grid, tuple(tuple(c) for c in columns), tuple(rk[:RACK_SIZE]))
+    rk = [_norm(r) for r in rack] + [None] * (RACK_SIZE - len(rack))
+    st0 = State(grid, tuple(tuple(_norm(c) for c in col) for col in columns), tuple(rk[:RACK_SIZE]))
     first = moves(st0)
     if not first:
         return Plan([], False, -1e9, True)
@@ -244,3 +332,102 @@ def plan(grid, columns, rack, time_limit=2.0, beam_width=60, depth=14):
             best = beam[0]
     sc, st = best
     return Plan(list(st.path), sc >= 1e8, sc, sc <= -1e8)
+
+
+# ---------------------------------------------------------------------------
+# Makro-Suche: Ein Zug = eine Spule aus einer Spalte losschicken und danach
+# alle Ablage-Spulen, die etwas nehmen koennen, gleich hinterher (Ablage leeren).
+# Dadurch bleibt die Ablage moeglichst leer, und die Suche muss nur noch die
+# Reihenfolge der Spalten entscheiden - die kann sie fast vollstaendig
+# durchprobieren (bis alle sichtbaren Spulen verplant sind).
+
+def _flush(st, lane_list):
+    """Ablage-Spulen losschicken, solange eine etwas nimmt (die beste zuerst)."""
+    while True:
+        best = None
+        for mv in moves(st):
+            if mv.source != "rack":
+                continue
+            s2 = apply(st, mv, lane_list)
+            if s2.dead:
+                continue
+            take = s2.removed - st.removed
+            if take > 0 and (best is None or take > best[0]):
+                best = (take, s2)
+        if best is None:
+            return st
+        st = best[1]
+
+
+def _leaf_score(st, lane_list):
+    if st.dead:
+        return -1e9
+    left = cells_left(st)
+    if left == 0:
+        return 1e9 - len(st.path)
+    rack = [r for r in st.rack if r]
+    score = st.removed * 10.0 - RACK_PENALTY[min(len(rack), RACK_SIZE)]
+    exposed = exposed_by_color(st.grid, lane_list)
+    remaining = {}
+    for v in st.grid.ravel():
+        if v >= 0:
+            remaining[int(v)] = remaining.get(int(v), 0) + 1
+    for color, count, _ in rack:
+        if remaining.get(color, 0) == 0:
+            score -= 400.0
+        elif exposed.get(color, 0) == 0:
+            score -= 60.0
+    # Spalten-Spulen, deren Farbe gerade frei liegt, sind gute naechste Zuege
+    for col in st.cols:
+        if col and col[0][0] >= 0 and exposed.get(col[0][0], 0) > 0:
+            score += 5.0 * min(exposed[col[0][0]], col[0][1] or 0)
+    return score
+
+
+def plan(grid, columns, rack, time_limit=2.0, beam_width=60, depth=14):
+    grid = np.asarray(grid, np.int16)
+    lane_list = lanes(*grid.shape)
+    rk = [_norm(r) for r in rack] + [None] * (RACK_SIZE - len(rack))
+    st0 = State(grid, tuple(tuple(_norm(c) for c in col) for col in columns), tuple(rk[:RACK_SIZE]))
+    deadline = time.time() + time_limit * 0.75
+    root = _flush(st0, lane_list)
+    best_sc, best_st = _leaf_score(root, lane_list), root
+    if cells_left(root) == 0:
+        return Plan(list(root.path), True, best_sc, False)
+    beam = [root]
+    seen = {root.key()}
+    width = 250
+    while beam and time.time() < deadline:
+        nxt = []
+        for st in beam:
+            for mv in moves(st):
+                if mv.source != "col":
+                    continue
+                s2 = apply(st, mv, lane_list)
+                if s2.dead:
+                    continue
+                s2 = _flush(s2, lane_list)
+                if s2.dead:
+                    continue
+                k = s2.key()
+                if k in seen:
+                    continue
+                seen.add(k)
+                sc = _leaf_score(s2, lane_list)
+                if sc >= 1e8:
+                    return Plan(list(s2.path), True, sc, False)
+                nxt.append((sc, s2))
+            if time.time() > deadline:
+                break
+        if not nxt:
+            break
+        nxt.sort(key=lambda t: -t[0])
+        beam = [s for _, s in nxt[:width]]
+        # tiefer = besser: ein Blatt, das weiter kommt, schlaegt ein flaches
+        sc, st = nxt[0]
+        best_sc, best_st = sc, st
+    if best_st.path:
+        return Plan(list(best_st.path), False, best_sc, False)
+    # Keine Spalten-Spule ohne Ueberlauf moeglich -> alte Suche als Notnagel
+    return plan_beam(grid, columns, rack, time_limit=max(0.2, deadline - time.time() + time_limit * 0.25),
+                     beam_width=beam_width, depth=depth)

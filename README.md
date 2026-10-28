@@ -33,14 +33,17 @@ Regeln (aus einer Bildschirmaufnahme Bild für Bild nachgeprüft):
 - Eine angetippte Spule fährt **einmal** ums Bild: unten → rechts hoch → oben → links runter.
 - An jeder Spalte/Zeile nimmt sie die **äußerste Masche**, wenn die Farbe passt – höchstens eine pro Spalte/Zeile.
 - Jede Masche kostet 1 von der Zahl. Rest → **Ablage** (5 Plätze). Ablage voll → „Kein Platz mehr!“.
+- **Doppelspulen** (mit einem Stab verbunden, ab Level 11): fahren nur zusammen los – beide müssen vorne stehen.
 
 Der Bot
 
 1. wartet, bis das Förderband still steht,
 2. liest Maschenraster, Farben, Spulen, Zahlen (eigene Ziffernerkennung) und Ablage,
-3. spielt alle möglichen Reihenfolgen im Kopf durch (Simulation stimmt exakt mit dem Spiel überein)
-   und wählt die, bei der die Ablage nie überläuft,
-4. tippt, wartet, liest neu – bis das Bild leer ist, dann nächstes Level.
+3. spielt die Reihenfolgen der Spalten im Kopf durch – nach jeder Spule werden sofort alle
+   Ablage-Spulen hinterhergeschickt, die etwas nehmen können (Ablage so leer wie möglich),
+4. wählt die Reihenfolge, bei der die Ablage nie überläuft (Test mit lösbaren Zufallsleveln auf echten
+   Bildern: 78 von 80 gewonnen),
+5. tippt, wartet, liest neu – bis das Bild leer ist, dann nächstes Level.
 
 **Sicherheit:** Fenster mit Münz- oder Geld-Angeboten („Spiel weiter 900“, „4,99 EUR“) werden
 immer mit X / Zurück geschlossen. Nach einem Verlust tippt der Bot „Versuche es noch einmal“.
