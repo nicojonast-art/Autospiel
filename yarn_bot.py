@@ -16,8 +16,8 @@ import yarn_vision as Y
 GAME_PACKAGE = "com.combo.yarnflow"
 
 DEFAULTS = {
-    "think_time": 2.0,
-    "burst": 2,              # so viele Spulen hintereinander losschicken (Band-Kapazitaet beachten)
+    "think_time": 1.0,
+    "burst": 3,              # so viele Spulen hintereinander losschicken (Band-Kapazitaet beachten)
     "idle_timeout": 20.0,    # max. Wartezeit, bis das Band leer ist
     "default_count": 20,     # falls eine Zahl nicht lesbar ist
     "max_levels": 0,
@@ -201,7 +201,7 @@ class YarnBot:
                     used_cols.add(mv.partner[1])
             sent += 1
             time.sleep(0.45)
-        time.sleep(1.0)
+        time.sleep(0.3)
 
     def _describe(self, scr, grid, columns, rack):
         """Kurzbeschreibung fuer das Protokoll: was der Bot erkannt hat."""
