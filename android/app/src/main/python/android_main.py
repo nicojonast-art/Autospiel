@@ -50,6 +50,13 @@ def _log(msg):
     Bridge.log(str(msg))
 
 
+def _status(msg):
+    try:
+        Bridge.setStatus(str(msg))
+    except Exception:  # noqa: BLE001
+        pass
+
+
 class AndroidDevice:
     """Gleiche Schnittstelle wie device.Device (ADB), aber direkt auf dem Handy."""
 
@@ -117,6 +124,7 @@ def _make_bot(game, cfg, dev):
         return B.Bot(dev, c)
     import yarn_bot as YB
     YB.time = _Zeit
+    YB.status = _status
     c = {"think_time": float(cfg.get("think_time", 1.0)), "dry_run": False, "max_levels": 0,
          "package": dev.package}
     return YB.YarnBot(dev, c, log=_log)
