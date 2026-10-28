@@ -231,6 +231,40 @@ def _autocorr(p, lo, hi):
     return bl
 
 
+def _best_count(prof, w, px):
+    """Spaltenzahl genau bestimmen: Die Autokorrelation liefert den Abstand nur
+    auf ein paar Prozent genau - bei 20 Spalten reicht das schon fuer eine
+    Spalte zu viel. Deshalb fuer nx-1, nx, nx+1 pruefen, wie gut die dunklen
+    Naehte zwischen den Spalten auf das Raster w/nx fallen."""
+    n0 = max(1, int(round(w / max(px, 1e-6))))
+    best, best_n = -1e9, n0
+    for n in range(max(1, n0 - 2), n0 + 3):
+        if n < 2:
+            continue
+        p = w / n
+        tol = max(1, int(round(p * 0.08)))
+        hits = []
+        for k in range(1, n):
+            pos = int(round(k * p))
+            a, b = max(0, pos - tol), min(len(prof), pos + tol + 1)
+            if a >= b:
+                continue
+            hits.append(float(prof[a:b].max()))
+        if not hits:
+            continue
+        # Mitten der Spalten sollen hell sein (keine Naht)
+        mids = []
+        for k in range(n):
+            pos = int(round((k + 0.5) * p))
+            a, b = max(0, pos - tol), min(len(prof), pos + tol + 1)
+            if a < b:
+                mids.append(float(prof[a:b].mean()))
+        score = float(np.median(hits)) - (float(np.mean(mids)) if mids else 0.0)
+        if score > best + 1e-6:
+            best, best_n = score, n
+    return best_n
+
+
 def picture_region(belt):
     return (belt.X(REF["inner_x0"]), belt.Yt(REF["inner_y0"]),
             belt.X(REF["inner_x1"]), belt.Yt(REF["inner_y1"]))
@@ -256,13 +290,16 @@ def detect_lattice(img, belt) -> Optional[Lattice]:
         return None
     sub = reg[y0:y1, x0:x1]
     dark = (sub.max(axis=2) < 45).astype(np.float32)
-    px = _autocorr(dark.mean(axis=0), 14 * s, 60 * s)
-    nx = max(1, int(round(w / px)))
+    prof = dark.mean(axis=0)
+    px = _autocorr(prof, 14 * s, 60 * s)
+    nx = _best_count(prof, w, px)
     px = w / nx
     # Zeilenabstand: im Spiel immer ca. 0.945 * Spaltenabstand (3D-Ansicht)
     py = px * 0.945
-    # Die unterste Reihe zeigt zusaetzlich ihre 3D-Seitenflaeche -> abrunden
-    ny = max(1, int(round((h - 0.15 * py) / py)))
+    # Unter der untersten Reihe sieht man deren 3D-Seitenflaeche (knapp eine
+    # Reihe hoch, gleiche Farbe wie die Masche darueber) - das ist KEINE eigene
+    # Reihe. Nachgemessen: Seitenflaeche ~0.9 * py.
+    ny = max(1, int(round((h - 0.9 * py) / py)))
     return Lattice(X0 + x0, Y0 + y0, px, py, nx, ny)
 
 

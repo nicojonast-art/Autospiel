@@ -733,9 +733,10 @@ def find_close_buttons(img, hsv):
     out = []
     for i in range(1, n):
         x, y, w, hh, a = st[i]
-        if not (W * 0.06 < w < W * 0.16 and 0.75 < w / max(hh, 1) < 1.3):
+        # rund: das weisse X nimmt viel Flaeche weg -> nur ~40 % rot
+        if not (W * 0.06 < w < W * 0.16 and 0.85 < w / max(hh, 1) < 1.18):
             continue
-        if a < 0.45 * w * hh:
+        if a < 0.33 * w * hh:
             continue
         # weisses X in der Mitte: Weiss liegt auf den Diagonalen
         cx, cy = int(x + w / 2), int(y + hh / 2)
@@ -750,7 +751,10 @@ def find_close_buttons(img, hsv):
         inner = ((yy - r) ** 2 + (xx - r) ** 2) < (r * 0.55) ** 2
         dw = white[diag & inner].mean()
         ow = white[inner & ~diag].mean()
-        if dw > 0.6 and dw - ow > 0.35:
+        # alle vier Arme des X muessen weiss sein (ein Herz "oo" hat das nicht)
+        arms = [white[diag & inner & qy & qx].mean()
+                for qy in (yy < r, yy >= r) for qx in (xx < r, xx >= r)]
+        if dw > 0.6 and dw - ow > 0.3 and min(arms) > 0.8:
             out.append((cx, cy, int(w), int(hh), "close"))
     return out
 
