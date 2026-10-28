@@ -177,7 +177,7 @@ class YarnBot:
             self.menu_step(img, scr)
 
     def game_step(self, img, scr):
-        n_cells = int((scr.grid >= 0).sum()) if scr.grid is not None else 0
+        n_cells = S.weight(scr.grid) if scr.grid is not None else 0
         spools_visible = any(scr.columns) or any(scr.rack)
 
         # Levelwechsel erkennen: mehr Maschen als vorher -> neues Bild
@@ -185,7 +185,7 @@ class YarnBot:
             self.log("Neues Level erkannt")
             self.reset_level()
             scr = Y.analyze(img)
-            n_cells = int((scr.grid >= 0).sum()) if scr.grid is not None else 0
+            n_cells = S.weight(scr.grid) if scr.grid is not None else 0
         if self.lattice is None and scr.lattice is not None and n_cells > 0:
             self.lattice = scr.lattice
             self.palette = [c for _, c in scr.palette]
@@ -330,14 +330,13 @@ class YarnBot:
             name = "?" if c < 0 else self._cname(scr, c)
             link = "=" if len(t) > 2 and t[2] is not None and t[2] >= 0 else ""
             return f"{link}{name}{n}"
-        counts = {}
-        for v in grid.ravel():
-            if v >= 0:
-                counts[int(v)] = counts.get(int(v), 0) + 1
+        counts = S.color_counts(grid)
+        knots = scr.info.get("knots") if scr.info else None
         bild = " ".join(f"{self._cname(scr, k)}:{n}" for k, n in sorted(counts.items()))
         spalten = " | ".join(" ".join(sp(t) for t in col) for col in columns)
         ablage = " ".join(sp(t) for t in rack)
-        return f"Bild {bild} · Spalten {spalten} · Ablage {ablage}"
+        kn = f" · Knoten {[k[0] for k in knots]}" if knots else ""
+        return f"Bild {bild}{kn} · Spalten {spalten} · Ablage {ablage}"
 
     def _cname(self, scr, idx):
         try:
