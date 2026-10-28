@@ -917,6 +917,99 @@ def _find_links(img, belt, columns, rack, bg, max_y=1e9):
 # ---------------------------------------------------------------------------
 # Gesamtanalyse
 # ---------------------------------------------------------------------------
+KNOT = 64      # Gitterwert = farbe + KNOT * (zusaetzliche Faeden); siehe yarn_solver
+
+
+def find_knots(img, lat: Lattice, belt: Belt):
+    """Fadenknoten: Bloecke im Bild mit einer weissen Zahl (dunkel umrandet).
+    Rueckgabe: [(zahl, (x0, y0, x1, y1) der Ziffern, lab der Knotenfarbe)]."""
+    X0, Y0, X1, Y1 = picture_region(belt)
+    reg = img[Y0:Y1, X0:X1]
+    if reg.size == 0:
+        return []
+    hsv = cv2.cvtColor(reg, cv2.COLOR_BGR2HSV)
+    white = ((hsv[..., 2] > 230) & (hsv[..., 1] < 45)).astype(np.uint8)
+    L = cv2.cvtColor(reg, cv2.COLOR_BGR2LAB)[..., 0].astype(np.int16)
+    n, lab, st, _ = cv2.connectedComponentsWithStats(white)
+    p = min(lat.px, lat.py)
+    comps = []
+    for i in range(1, n):
+        x, y, w, h, a = st[i]
+        if not (1.0 * p <= h <= 1.8 * p and w <= 0.95 * h and a >= 8):
+            continue
+        # Ziffern sind dunkel umrandet, weisse Maschen nicht
+        y0, y1 = max(0, y - 2), min(reg.shape[0], y + h + 2)
+        x0, x1 = max(0, x - 2), min(reg.shape[1], x + w + 2)
+        ring = L[y0:y1, x0:x1][lab[y0:y1, x0:x1] != i]
+        if ring.size == 0 or float(np.percentile(ring, 10)) > 115:
+            continue
+        if a > 0.72 * w * h:          # volle weisse Flaeche = Masche, keine Ziffer
+            continue
+        comps.append((x, y, w, h, i))
+    comps.sort()
+    used, out = set(), []
+    for k, c in enumerate(comps):
+        if k in used:
+            continue
+        grp = [c]
+        for k2 in range(k + 1, len(comps)):
+            d = comps[k2]
+            last = grp[-1]
+            if (k2 not in used and abs((d[1] + d[3] / 2) - (last[1] + last[3] / 2)) < 0.3 * last[3]
+                    and 0 <= d[0] - (last[0] + last[2]) < 0.6 * last[3] and len(grp) < 2):
+                grp.append(d)
+                used.add(k2)
+        val, conf = _read_digits(lab, grp)
+        if val is None or not (1 <= val <= 99) or conf < 0.25:
+            continue
+        gx0 = min(g[0] for g in grp)
+        gy0 = min(g[1] for g in grp)
+        gx1 = max(g[0] + g[2] for g in grp)
+        gy1 = max(g[1] + g[3] for g in grp)
+        # nur innerhalb des Maschengitters (Zahlen an Band-Spulen ausschliessen)
+        mx, my = (gx0 + gx1) / 2 + X0, (gy0 + gy1) / 2 + Y0
+        if not (lat.x0 + 0.3 * lat.px <= mx <= lat.x0 + (lat.nx - 0.3) * lat.px
+                and lat.y0 + 0.3 * lat.py <= my <= lat.y0 + (lat.ny - 0.3) * lat.py):
+            continue
+        # Knotenfarbe: Ring um die Zahl, ohne Weiss und Umrandung
+        pad = int(0.45 * p) + 2
+        ry0, ry1 = max(0, gy0 - pad), min(reg.shape[0], gy1 + pad)
+        rx0, rx1 = max(0, gx0 - pad), min(reg.shape[1], gx1 + pad)
+        patch = reg[ry0:ry1, rx0:rx1].reshape(-1, 3)
+        hp = hsv[ry0:ry1, rx0:rx1].reshape(-1, 3)
+        Lp = L[ry0:ry1, rx0:rx1].reshape(-1)
+        keep = (Lp >= 90) & ~((hp[:, 2] > 230) & (hp[:, 1] < 45))
+        if keep.sum() < 10:
+            continue
+        col = _lab(np.median(patch[keep], axis=0).astype(np.uint8))[0]
+        out.append((val, (gx0 + X0, gy0 + Y0, gx1 + X0, gy1 + Y0), col))
+    return out
+
+
+def apply_knots(grid, lat: Lattice, knots, centers):
+    """Knoten ins Gitter eintragen: Zellen unter dem Knoten bekommen seine Farbe,
+    die Zahl wird auf die Zellen verteilt (Wert = farbe + KNOT * (n - 1))."""
+    if grid is None or not knots or not centers:
+        return grid
+    for val, (x0, y0, x1, y1), lab in knots:
+        d = [color_distance(lab, c) for c in centers]
+        k = int(np.argmin(d))
+        mx, my = 0.35 * lat.px, 0.35 * lat.py
+        cells = []
+        for r in range(lat.ny):
+            for c in range(lat.nx):
+                cx, cy = lat.center(r, c)
+                if x0 - mx <= cx <= x1 + mx and y0 - my <= cy <= y1 + my:
+                    cells.append((r, c))
+        if not cells:
+            continue
+        base, extra = divmod(val, len(cells))
+        for j, (r, c) in enumerate(cells):
+            m = base + (1 if j < extra else 0)
+            grid[r, c] = -1 if m <= 0 else k + KNOT * (min(m, 30) - 1)
+    return grid
+
+
 def analyze(img, lattice: Optional[Lattice] = None, palette_lock=None) -> YarnScreen:
     """lattice / palette_lock: zu Levelbeginn eingerastetes Raster und Farben."""
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
@@ -970,6 +1063,14 @@ def analyze(img, lattice: Optional[Lattice] = None, palette_lock=None) -> YarnSc
             grid[r, c] = k
         if grid is not None and len(centers) > 1:
             grid, centers = _merge_edge_shades(grid, centers, labs, cells, protect_labs=spool_labs)
+    if lat is not None and grid is not None:
+        try:
+            knots = find_knots(img, lat, belt)
+        except Exception:
+            knots = []
+        if knots:
+            grid = apply_knots(grid, lat, knots, centers)
+            scr.info["knots"] = [(v, int(b[0]), int(b[1])) for v, b, _ in knots]
     palette = [(_name_for(c), c) for c in centers]
 
     # Spulenfarbe der naechsten Maschenfarbe zuordnen
