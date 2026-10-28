@@ -570,14 +570,15 @@ def _name_for(lab):
     if L < 45 and chroma < 20:
         return "schwarz"
     if chroma < 14:
-        return "weiss" if L > 75 else "grau"
+        return "weiss" if L > 88 else "grau"
     hue = (np.degrees(np.arctan2(b, a)) + 360) % 360
     if L < 60 and 30 < hue < 90 and chroma < 45:
         return "braun"
     if chroma < 30 and 40 < hue < 100:
         return "beige"
-    names = [(20, "rot"), (45, "orange"), (100, "gelb"), (170, "gruen"), (230, "tuerkis"),
-             (290, "blau"), (330, "lila"), (360, "pink")]
+    # Farbwinkel in OpenCV-Lab (nachgemessen: Rot ~40, Orange ~59, Gelb ~85)
+    names = [(22, "pink"), (50, "rot"), (72, "orange"), (105, "gelb"), (170, "gruen"),
+             (230, "tuerkis"), (290, "blau"), (330, "lila"), (360, "pink")]
     for lim, nm in names:
         if hue < lim:
             return nm
