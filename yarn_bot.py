@@ -52,6 +52,8 @@ class YarnBot:
         self.last_rack_move = None
         self.last_col_move = None
         self.blocked_cols = set()     # Spalten, deren Antippen nichts bewirkt (z.B. verbunden)
+        self.bad_pairs = set()        # vermeintliche Doppelspulen, die gar keine sind
+        self.last_pair_move = None
         self.prev_rack_n = None
         self.prev_cells = None
 
@@ -95,6 +97,8 @@ class YarnBot:
         self.last_rack_move = None
         self.last_col_move = None
         self.blocked_cols = set()
+        self.bad_pairs = set()
+        self.last_pair_move = None
         self.prev_rack_n = None
         self.prev_cells = None
         self.lattice = None
@@ -219,6 +223,19 @@ class YarnBot:
                     if i not in self.blocked_cols:
                         self.log(f"Spalte {i + 1} reagiert nicht (verbunden?) – lasse sie aus")
                     self.blocked_cols.add(i)
+            if self.last_pair_move is not None and n_cells >= self.prev_cells - 1:
+                i, j, c, n = self.last_pair_move
+                if i < len(columns) and columns[i] and columns[i][0][0] == c and columns[i][0][1] == n:
+                    if (i, j) not in self.bad_pairs:
+                        self.log(f"Spalte {i + 1}+{j + 1} sind wohl nicht verbunden – einzeln probieren")
+                    self.bad_pairs.add((i, j))
+        if self.prev_cells is not None and n_cells < self.prev_cells - 2:
+            self.bad_pairs.clear()
+        for i, j in self.bad_pairs:
+            for k in (i, j):
+                if k < len(columns) and columns[k] and len(columns[k][0]) > 2 and columns[k][0][2] >= 0:
+                    c0 = columns[k][0]
+                    columns[k] = [(c0[0], c0[1], -1)] + list(columns[k][1:])
         for i in self.blocked_cols:
             if i < len(columns) and columns[i]:
                 c0 = columns[i][0]
@@ -231,6 +248,7 @@ class YarnBot:
         self.prev_rack_n = rack_n
         self.last_rack_move = None
         self.last_col_move = None
+        self.last_pair_move = None
         self.log("Sehe: " + self._describe(scr, grid, columns, rack)
                  + f" ({getattr(self, '_timing', '')})")
         t_plan = time.time()
@@ -267,6 +285,8 @@ class YarnBot:
                 self.last_rack_move = (mv.color, mv.count)
             if sent == 0 and mv.source == "col" and mv.partner is None:
                 self.last_col_move = (mv.index, mv.color, mv.count)
+            if sent == 0 and mv.source == "col" and mv.partner is not None:
+                self.last_pair_move = (mv.index, mv.partner[1], mv.color, mv.count)
             what = "Ablage" if mv.source == "rack" else f"Spalte {mv.index + 1}"
             if mv.partner is not None:
                 what += f" + Partner ({self._cname(scr, mv.partner[2])} {mv.partner[3]})"
