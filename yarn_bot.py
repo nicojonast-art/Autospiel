@@ -157,6 +157,7 @@ class YarnBot:
             return
 
         grid, columns, rack, taps = self.model(scr)
+        self.log("Sehe: " + self._describe(scr, grid, columns, rack))
         p = S.plan(grid, columns, rack, time_limit=self.cfg["think_time"])
         if not p.moves:
             # Keine bekannte Spule -> Ueberraschungsspule vorne antippen
@@ -195,6 +196,24 @@ class YarnBot:
             sent += 1
             time.sleep(0.45)
         time.sleep(1.0)
+
+    def _describe(self, scr, grid, columns, rack):
+        """Kurzbeschreibung fuer das Protokoll: was der Bot erkannt hat."""
+        def sp(t):
+            if t is None:
+                return "-"
+            c, n = t[0], t[1]
+            name = "?" if c < 0 else self._cname(scr, c)
+            link = "=" if len(t) > 2 and t[2] is not None and t[2] >= 0 else ""
+            return f"{link}{name}{n}"
+        counts = {}
+        for v in grid.ravel():
+            if v >= 0:
+                counts[int(v)] = counts.get(int(v), 0) + 1
+        bild = " ".join(f"{self._cname(scr, k)}:{n}" for k, n in sorted(counts.items()))
+        spalten = " | ".join(" ".join(sp(t) for t in col) for col in columns)
+        ablage = " ".join(sp(t) for t in rack)
+        return f"Bild {bild} · Spalten {spalten} · Ablage {ablage}"
 
     def _cname(self, scr, idx):
         try:
