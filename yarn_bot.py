@@ -22,6 +22,7 @@ DEFAULTS = {
     "default_count": 20,     # falls eine Zahl nicht lesbar ist
     "max_levels": 0,
     "dry_run": False,
+    "package": GAME_PACKAGE,
 }
 
 
@@ -55,9 +56,9 @@ class YarnBot:
         self.log("Yarn-Loop-Bot laeuft. Abbrechen mit Strg+C.")
         try:
             fg = self.dev.foreground() or ""
-            if GAME_PACKAGE not in fg:
+            if self.cfg["package"] not in fg:
                 self.log("Starte Yarn Loop ...")
-                self.dev.start_game(GAME_PACKAGE)
+                self.dev.start_game(self.cfg["package"])
         except Exception:
             pass
         while should_continue():
@@ -294,9 +295,9 @@ class YarnBot:
         except Exception:
             pass
         waited = time.time() - self.unknown_since
-        if fg and GAME_PACKAGE not in fg and waited > 3:
+        if fg and self.cfg["package"] not in fg and waited > 3:
             self.log(f"Yarn Loop nicht im Vordergrund ({fg}) – starte es")
-            self.dev.start_game(GAME_PACKAGE)
+            self.dev.start_game(self.cfg["package"])
             self.unknown_since = None
             return
         if waited > 25:
