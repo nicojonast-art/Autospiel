@@ -347,16 +347,45 @@ def read_grid(img, lat: Lattice, belt: Belt):
     # Oberseite der Masche (Licht von oben links); Raender zeigen sonst ihre
     # dunklere 3D-Seitenflaeche
     hx, hy = lat.px * 0.33, lat.py * 0.33
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    lap = np.abs(cv2.Laplacian(cv2.GaussianBlur(gray, (3, 3), 0), cv2.CV_32F))
+    tex = np.zeros((lat.ny, lat.nx), np.float32)
     for r in range(lat.ny):
         for c in range(lat.nx):
             cx, cy = lat.center(r, c)
             cy -= lat.py * 0.05
-            patch = img[int(cy - hy):int(cy + hy) + 1, int(cx - hx):int(cx + hx) + 1]
+            y0, y1 = int(cy - hy), int(cy + hy) + 1
+            x0, x1 = int(cx - hx), int(cx + hx) + 1
+            patch = img[y0:y1, x0:x1]
             lab, empty = _color_of(patch, bg)
             if not empty:
                 filled[r, c] = True
                 grid_lab[r, c] = lab
+                t = lap[y0:y1, x0:x1]
+                tex[r, c] = float(t.mean()) if t.size else 0.0
+    _drop_side_faces(grid_lab, filled, tex)
     return grid_lab, filled, bg
+
+
+def _drop_side_faces(grid_lab, filled, tex):
+    """Unter der jeweils untersten Masche einer Spalte sieht man ihre glatte,
+    dunklere 3D-Seitenflaeche - fast eine Zelle hoch. Die ist KEINE Masche
+    (sonst haelt der Bot sie z.B. fuer braune Maschen unter orangen).
+    Erkennung: Zelle darunter leer, Zelle darueber gefuellt, gleicher Farbton
+    wie darueber aber dunkler, und kaum Struktur (keine Schlaufen)."""
+    ny, nx = filled.shape
+    for c in range(nx):
+        for r in range(ny - 1, 0, -1):
+            if not filled[r, c] or not filled[r - 1, c]:
+                continue
+            if r + 1 < ny and filled[r + 1, c]:
+                continue
+            up, me = grid_lab[r - 1, c], grid_lab[r, c]
+            hue = float(np.hypot(me[1] - up[1], me[2] - up[2]))
+            smooth = tex[r, c] < 0.45 * max(tex[r - 1, c], 1e-3) or tex[r, c] < 2.0
+            if smooth and hue < 28 and me[0] <= up[0] + 8:
+                filled[r, c] = False
+                grid_lab[r, c] = 0
 
 
 # ---------------------------------------------------------------------------

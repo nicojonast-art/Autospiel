@@ -127,6 +127,8 @@ def apply(st, mv, lane_list):
         rack[mv.index] = None
     taken, rest = run_lap(grid, mv.color, mv.count, lane_list)
     dead = False
+    if taken == 0 and mv.source == "rack":
+        dead = True          # nutzlose Runde - Spule kaeme nur zurueck
     if rest and rest > 0:
         if None in rack:
             rack[rack.index(None)] = (mv.color, rest)
@@ -139,17 +141,40 @@ def cells_left(st):
     return int((st.grid >= 0).sum())
 
 
+# Strafpunkte fuer belegte Ablageplaetze (0..5 belegt). Eine Masche zaehlt 10.
+# Die Ablage soll moeglichst leer bleiben: schon der 3. Platz kostet so viel
+# wie 30 Maschen, der 4./5. ist fast so schlimm wie verlieren.
+RACK_PENALTY = (0.0, 40.0, 120.0, 300.0, 900.0, 2500.0)
+
+
+def exposed_by_color(grid, lane_list):
+    """Wie viele Bahnen zeigen gerade vorne eine Masche dieser Farbe?"""
+    out = {}
+    for kind, i in lane_list:
+        cell = front_cell(grid, kind, i)
+        if cell is not None:
+            v = int(grid[cell])
+            out[v] = out.get(v, 0) + 1
+    return out
+
+
 def evaluate(st, lane_list):
     if st.dead:
         return -1e9
     left = cells_left(st)
     if left == 0:
         return 1e9 - len(st.path)
-    in_rack = sum(1 for r in st.rack if r)
+    rack = [r for r in st.rack if r]
     score = st.removed * 10.0
-    score -= in_rack * 25.0
-    if in_rack >= RACK_SIZE - 1:
-        score -= 200.0
+    score -= RACK_PENALTY[min(len(rack), RACK_SIZE)]
+    exposed = exposed_by_color(st.grid, lane_list)
+    for color, count in rack:
+        # Ablage-Spule, die gerade gar nichts nehmen kann, blockiert ihren Platz
+        if exposed.get(color, 0) == 0:
+            score -= 60.0
+        # Reste, die in einer Runde aufgehen, sind gut - grosse Reste schlecht
+        elif count is not None and count <= exposed.get(color, 0):
+            score += 25.0
     # Wie viel koennten die jetzt antippbaren Spulen sofort nehmen?
     best_now = 0
     for mv in moves(st):
@@ -160,7 +185,7 @@ def evaluate(st, lane_list):
     score += best_now * 2.0
     # Farben, fuer die keine Spule mehr bekannt ist, aber Maschen da sind
     colors_left = set(int(v) for v in np.unique(st.grid) if v >= 0)
-    have = set(c for col in st.cols for c, _ in col) | set(r[0] for r in st.rack if r)
+    have = set(c for col in st.cols for c, _ in col) | set(r[0] for r in rack)
     unknown_spools = UNKNOWN_COLOR in have
     for c in colors_left:
         if c not in have and not unknown_spools:

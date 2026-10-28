@@ -101,6 +101,10 @@ class YarnBot:
                 if calm >= 2:
                     return img
             prev = small
+            if belt is None:
+                # Popup/Menue: dort blinkt und glitzert immer etwas (Knopf-Glanz,
+                # Mini-Foerderband) - nicht auf Stillstand warten
+                t_end = min(t_end, time.time() + 1.5)
             if time.time() > t_end:
                 return img
             time.sleep(0.35)
