@@ -810,9 +810,25 @@ def read_spools(img, belt, bg):
     y0 = belt.Yb(REF["spool_y"] - 50)
     y1 = min(bottom, belt.Yb(REF["spool_y"] + 2 * REF["spool_dy"]))
     band = img[y0:y1].astype(np.int16)
-    colf = (np.abs(band - bg).sum(axis=2) > 60).mean(axis=0)
+    # > 35: graue Spulen heben sich nur schwach vom Hintergrund ab
+    colf = (np.abs(band - bg).sum(axis=2) > 35).mean(axis=0)
     runs = _runs(colf > 0.25, int(90 * s))
     centers = [int((a + b) / 2) for a, b in runs if (b - a) < 220 * s]
+    # Graue Spulen heben sich kaum vom Hintergrund ab -> zusaetzlich die
+    # moeglichen Spaltenplaetze (symmetrisch zur Bandmitte, halbe Abstaende)
+    # pruefen: dort, wo eine lesbare Spule steht, ist auch eine Spalte.
+    mid = (belt.x0 + belt.x1) / 2.0
+    half = REF["spool_dx"] * s / 2.0
+    dy0 = belt.Yb(REF["spool_y"])
+    by0 = belt.Yb(REF["spool_body_y"])
+    for m in range(-4, 5):
+        cx = int(round(mid + m * half))
+        if any(abs(cx - c) < 60 * s for c in centers):
+            continue
+        sp = _spool_at(img, belt, cx, dy0, by0, bg, "probe", occl_y=bottom - 140 * s)
+        if sp is not None and sp.count is not None:
+            centers.append(cx)
+    centers.sort()
     columns = []
     for k, cx in enumerate(centers):
         col = []
