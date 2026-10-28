@@ -304,6 +304,14 @@ class YarnBot:
             time.sleep(3)
             return
         if scr.kind == "dim":
+            # Tutorial mit gruenem Pfeil (z.B. Gratis-Booster): genau dorthin tippen
+            arrow = Y.find_tutorial_arrow(img)
+            if arrow is not None:
+                self.log("Tutorial-Pfeil – tippe dort")
+                self.tap(arrow[0], arrow[1], "Tutorial")
+                self.unknown_since = None
+                time.sleep(1.5)
+                return
             # kurz abwarten (z.B. Banner "Kein Platz mehr!"), dann oben antippen
             if self.unknown_since is None:
                 self.unknown_since = time.time()
