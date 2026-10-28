@@ -17,7 +17,7 @@ GAME_PACKAGE = "com.combo.yarnflow"
 
 DEFAULTS = {
     "think_time": 1.0,
-    "burst": 3,              # so viele Spulen hintereinander losschicken (Band-Kapazitaet beachten)
+    "burst": 4,              # so viele Spulen hintereinander losschicken (Band-Kapazitaet beachten)
     "idle_timeout": 20.0,    # max. Wartezeit, bis das Band leer ist
     "default_count": 20,     # falls eine Zahl nicht lesbar ist
     "max_levels": 0,
@@ -271,8 +271,11 @@ class YarnBot:
         # Die ersten Zuege ausfuehren (Spalten-Zuege duerfen gebuendelt werden)
         sent = 0
         used_cols = set()
+        rack_sent = False
         for mv in p.moves[: max(1, int(self.cfg["burst"]))]:
-            if sent > 0 and mv.source != "col":
+            # Ablage-Plaetze ruecken nach, sobald eine Ablage-Spule losfaehrt ->
+            # pro Runde hoechstens eine Ablage-Spule, Spalten beliebig viele
+            if mv.source != "col" and rack_sent:
                 break
             key = (mv.source, mv.index)
             if key not in taps:
@@ -295,8 +298,10 @@ class YarnBot:
                 used_cols.add(mv.index)
                 if mv.partner is not None:
                     used_cols.add(mv.partner[1])
+            if mv.source == "rack":
+                rack_sent = True
             sent += 1
-            time.sleep(0.45)
+            time.sleep(0.35)
         time.sleep(0.3)
 
     def _describe(self, scr, grid, columns, rack):
