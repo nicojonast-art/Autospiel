@@ -58,6 +58,19 @@ def test_level9_lattice():
     assert all(n % 10 == 0 for n in c)   # Spulen haben immer Zehnerzahlen
 
 
+def test_side_faces_are_not_stitches():
+    # Mitten im Level: unter jeder untersten Masche liegt deren dunkle
+    # Seitenflaeche - frueher als braune Maschen gezaehlt
+    start = Y.analyze(load("yarn_lvl9.jpg"))
+    pal = [c for _, c in start.palette]
+    s = Y.analyze(load("yarn_faces.jpg"), start.lattice, pal)
+    assert s.kind == "game"
+    names = [n for n, _ in start.palette]
+    got = {names[k]: int((s.grid == k).sum()) for k in range(len(names))}
+    assert got["braun"] == 20          # unveraendert, keine Schein-Maschen
+    assert int((s.grid >= 0).sum()) == 170
+
+
 def test_rack_numbers():
     s = Y.analyze(load("yarn_280.jpg"))
     assert s.kind == "game"
