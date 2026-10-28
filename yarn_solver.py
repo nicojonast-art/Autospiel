@@ -148,6 +148,12 @@ def moves(st):
     fronts = {i: col[0] for i, col in enumerate(st.cols) if col}
     for i, (color, count, lid) in fronts.items():
         if color == UNKNOWN_COLOR:
+            # Ueberraschungs-Spule ("?"-Kasten): Farbe erst nach dem Antippen
+            # bekannt. Vorsichtig gerechnet: nimmt nichts, belegt einen
+            # Ablageplatz - die Suche oeffnet sie also nur, wenn es sich lohnt
+            # bzw. nichts anderes mehr geht. Danach wird ohnehin neu geplant.
+            if lid < 0:
+                out.append(Move("col", i, color, count if count else 10))
             continue
         if lid >= 0:
             # Doppelspule: nur antippbar, wenn der Partner auch vorne steht
