@@ -193,7 +193,16 @@ public class MainActivity extends AppCompatActivity implements Bridge.Listener {
                 .setPositiveButton(R.string.go, (d, w) -> {
                     MediaProjectionManager mpm = getSystemService(MediaProjectionManager.class);
                     try {
-                        captureLauncher.launch(mpm.createScreenCaptureIntent());
+                        Intent capture;
+                        if (Build.VERSION.SDK_INT >= 34) {
+                            // Immer den ganzen Bildschirm aufnehmen - "Eine App teilen"
+                            // wuerde beim Wechsel ins Spiel sofort abbrechen
+                            capture = mpm.createScreenCaptureIntent(
+                                    android.media.projection.MediaProjectionConfig.createConfigForDefaultDisplay());
+                        } else {
+                            capture = mpm.createScreenCaptureIntent();
+                        }
+                        captureLauncher.launch(capture);
                     } catch (ActivityNotFoundException e) {
                         toast(R.string.capture_denied);
                     }
