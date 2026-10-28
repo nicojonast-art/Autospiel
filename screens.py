@@ -67,15 +67,21 @@ def ocr_words(img):
 
 
 def has_coin_icon(img, hsv, x, y, w, h):
-    """Goldene Muenze im/neben dem Button -> kostet Muenzen."""
+    """Goldene Muenze im Button -> kostet Muenzen. Erkennt einen runden,
+    goldenen Fleck (Muenzsymbol neben dem Preis)."""
     H, W = img.shape[:2]
     xa, xb = max(0, x - w // 2), min(W, x + w // 2)
     ya, yb = max(0, y - h // 2), min(H, y + h // 2)
     p = hsv[ya:yb, xa:xb]
     if p.size == 0:
         return False
-    gold = ((p[..., 0] >= 15) & (p[..., 0] <= 32) & (p[..., 1] > 150) & (p[..., 2] > 200))
-    return gold.mean() > 0.04
+    gold = ((p[..., 0] >= 12) & (p[..., 0] <= 32) & (p[..., 1] > 130) & (p[..., 2] > 170)).astype(np.uint8)
+    n, lab, st, _ = cv2.connectedComponentsWithStats(gold)
+    for i in range(1, n):
+        bx, by, bw, bh, a = st[i]
+        if a > (0.15 * (yb - ya)) ** 2 and 0.6 < bw / max(bh, 1) < 1.6:
+            return True
+    return False
 
 
 def contains(text, words):

@@ -1,126 +1,72 @@
-# Car Match Bot (Xiaomi / Android)
+# Autospiel
 
-> Automatischer Löser für **Car Match – Traffic Puzzle** (Grand Games) per ADB.
-> Läuft auf dem PC (Windows / macOS / Linux) und steuert das Handy über USB oder WLAN.
+Spielt **Yarn Loop** (Combo Game) und **Car Match** (Grand Games) automatisch –
+direkt auf dem Handy als App oder vom PC aus (ADB / MuMu Player).
 
-```
-git clone https://github.com/nicojonast-art/Autospiel.git
-cd Autospiel
-pip install -r requirements.txt
-python bot.py
-```
+## 📱 App auf dem Handy (Xiaomi & Co.)
 
-Spielt **Car Match – Traffic Puzzle** (Grand Games, `com.grandgames.carmatch`)
-vollautomatisch: erkennt bei jedem Zug das Spielfeld, plant die Züge, tippt,
-startet das nächste Level, schließt Popups und versucht es nach einem
-verlorenen Level erneut.
+### Installieren
+1. Auf dem Handy öffnen: **github.com/nicojonast-art/Autospiel/releases/latest**
+2. Unter „Assets“ auf **`Autospiel.apk`** tippen → herunterladen → öffnen → **Installieren**.
+   Beim ersten Mal fragt Android, ob der Browser Apps installieren darf → erlauben.
+3. Neuere Versionen genauso installieren – die alte wird einfach ersetzt.
 
-## Wie er funktioniert
+### Einrichten (einmalig, die App zeigt alles mit ✓ an)
+1. **Bedienungshilfe**: In der App auf „Einschalten“ → *Installierte Apps* → **Autospiel** → an.
+   *Xiaomi/Android 13+: Ist der Schalter ausgegraut?* App-Info von Autospiel öffnen →
+   oben rechts **⋮** → **„Eingeschränkte Einstellungen zulassen“** → danach geht's.
+2. **Spiel installiert**: Yarn Loop aus dem Play Store.
+3. **Akku: keine Einschränkung** – sonst beendet Xiaomi den Bot im Hintergrund.
+4. **Benachrichtigung** erlauben (zeigt Stopp-Knopf).
 
-1. **Screenshot** per ADB (Rohdaten, schnell).
-2. **Bilderkennung** (`vision.py`), komplett auflösungsunabhängig:
-   - Parkleiste (7 Plätze) und deren Inhalt
-   - Raster des Parkplatzes (Zellgröße/Position werden pro Level gemessen und eingerastet)
-   - jedes Feld: Straße, Gehweg/Wand, Auto + Farbe, Unbekanntes
-   - **offene Augen** auf der Windschutzscheibe = Auto ist antippbar (so zeigt es das Spiel selbst)
-   - Tunnel/Garagen (lila Bogen) inkl. Zahl der Autos darin (mit Tesseract)
-   - Booster-Knöpfe, rote X-Knöpfe, grüne Buttons, abgedunkelte Tutorials
-3. **Löser** (`solver.py`): Ein Auto ist frei, wenn ein Nachbarfeld freie,
-   mit der Ausfahrt verbundene Straße ist. Strahlsuche + Tiefensuche finden
-   meist sofort eine **komplette Lösung** fürs ganze Level (Level 5 aus dem
-   Video: 39 Autos, gelöst in 0,4 s). Unbekannte Autos (Tunnel) werden nach
-   jedem Zug neu eingeplant.
-4. **Steuerung** (`bot.py`): wartet nach jedem Tap, bis alles still steht,
-   prüft ob der Plan noch passt, sonst neu planen. Wenn alle Züge verlieren
-   würden, werden (einmal pro Level) Booster probiert.
-5. **Menüs** (`screens.py`): „Level N“ antippen, Popups mit X schließen,
-   „Try again / Continue / Claim …“ per Texterkennung. **Münzen werden nie
-   ausgegeben** (außer mit `--allow-coins`). Keine Leben → 5 Minuten warten.
-   Werbung → warten, „X/Skip/Close“ suchen, sonst Zurück-Taste.
+### Spielen
+1. Oben **Yarn Loop** (oder Car Match) wählen → **Start**.
+2. Android fragt nach der Bildschirmaufnahme → **„Gesamten Bildschirm“** wählen → **Starten**.
+3. Die App öffnet das Spiel und spielt los. Oben links schwebt eine kleine Pille
+   „Autospiel · 3 Level · Stopp“ – antippen = stoppen. Stoppen geht auch über die Benachrichtigung.
 
-## Am PC mit MuMu Player (am einfachsten)
+## 🧠 So spielt der Bot Yarn Loop
 
-1. MuMu Player starten, **Car Match** darin installieren (Play Store) und einmal öffnen.
-2. Diesen Ordner herunterladen (grüner Knopf **Code → Download ZIP**) und entpacken.
-3. **`start.bat`** doppelklicken.
-   - Fehlt Python, wird es automatisch installiert (über winget).
-   - ADB muss nicht installiert werden: der Bot nimmt das `adb.exe` von MuMu
-     und verbindet sich selbst mit dem Emulator (127.0.0.1:16384 bzw. 7555).
-4. Der Bot startet das Spiel in MuMu und spielt los. Stoppen: Fenster schließen oder Strg + C.
+Regeln (aus einer Bildschirmaufnahme Bild für Bild nachgeprüft):
 
-Tipp: In MuMu unter *Einstellungen → Anzeige* das **Handy-Format (Hochkant)** wählen,
-z. B. 1080×1920 – dann ist die Erkennung am genauesten.
+- Eine angetippte Spule fährt **einmal** ums Bild: unten → rechts hoch → oben → links runter.
+- An jeder Spalte/Zeile nimmt sie die **äußerste Masche**, wenn die Farbe passt – höchstens eine pro Spalte/Zeile.
+- Jede Masche kostet 1 von der Zahl. Rest → **Ablage** (5 Plätze). Ablage voll → „Kein Platz mehr!“.
 
-## Einrichtung am Xiaomi (einmalig)
+Der Bot
 
-1. *Einstellungen → Über das Telefon* → 7× auf **OS-Version** (bzw. MIUI-Version) tippen.
-2. *Einstellungen → Weitere Einstellungen → Entwickleroptionen*:
-   - **USB-Debugging** → AN
-   - **USB-Debugging (Sicherheitseinstellungen)** → AN
-     *(wichtig! Ohne das funktionieren keine Taps. Xiaomi verlangt dafür
-     meist ein angemeldetes Mi-Konto und eine eingelegte SIM.)*
-3. Handy per USB an den PC, Dialog „USB-Debugging zulassen?“ bestätigen
-   (Häkchen „immer zulassen“).
+1. wartet, bis das Förderband still steht,
+2. liest Maschenraster, Farben, Spulen, Zahlen (eigene Ziffernerkennung) und Ablage,
+3. spielt alle möglichen Reihenfolgen im Kopf durch (Simulation stimmt exakt mit dem Spiel überein)
+   und wählt die, bei der die Ablage nie überläuft,
+4. tippt, wartet, liest neu – bis das Bild leer ist, dann nächstes Level.
 
-## Einrichtung am PC (einmalig)
+**Sicherheit:** Fenster mit Münz- oder Geld-Angeboten („Spiel weiter 900“, „4,99 EUR“) werden
+immer mit X / Zurück geschlossen. Nach einem Verlust tippt der Bot „Versuche es noch einmal“.
 
-1. **Python 3.10+** installieren (Windows: bei der Installation „Add to PATH“ anhaken).
-2. **ADB** (Android Platform-Tools) installieren und in den PATH legen
-   (oder `adb.exe` in diesen Ordner kopieren).
-3. Im Ordner dieses Bots:
-   ```
-   pip install -r requirements.txt
-   ```
-4. *(Empfohlen)* **Tesseract-OCR** installieren – damit liest der Bot Texte
-   auf Popups und die Zahl auf Tunneln. Ohne geht es auch, dann nur per Farbe.
+## 💻 Am PC (MuMu Player oder Handy per USB)
 
-## Starten
-
-Spiel muss nicht offen sein – der Bot startet es selbst.
+1. **`start.bat`** doppelklicken (installiert Python bei Bedarf automatisch).
+2. Der Bot findet MuMus `adb.exe` selbst und verbindet sich mit dem Emulator.
 
 ```
-python bot.py                 # endlos spielen
-python bot.py --levels 10     # 10 Level, dann Stopp
-python bot.py --debug         # Erkennungsbilder in ./debug speichern
-python bot.py --dry-run       # nur erkennen + planen, nicht tippen
-python bot.py --no-boosters   # keine Booster benutzen
-python bot.py --think 4       # mehr Rechenzeit pro Plan (Standard 2,5 s)
+python bot.py                # Yarn Loop (Standard)
+python bot.py --spiel car    # Car Match
+python bot.py --dry-run      # nur anzeigen, nicht tippen
+python bot.py --analyze bild.png   # einen Screenshot auswerten
 ```
 
-Windows: einfach `start.bat` doppelklicken.
+Handy per USB: Entwickleroptionen → **USB-Debugging** und (Xiaomi) **USB-Debugging (Sicherheitseinstellungen)** einschalten.
 
-Beenden: **Strg + C**.
+## 🔧 Für Entwickler
 
-### Ohne Kabel (WLAN-Debugging, Android 11+)
-
-Entwickleroptionen → *Kabelloses Debugging* → *Gerät mit Kopplungscode koppeln*:
-```
-adb pair 192.168.x.x:PORT        (Kopplungscode eingeben)
-adb connect 192.168.x.x:PORT2    (Port aus dem Hauptbildschirm "Kabelloses Debugging")
-python bot.py --serial 192.168.x.x:PORT2
-```
-
-## Einstellungen (`config.json`)
-
-| Schlüssel | Standard | Bedeutung |
-|---|---|---|
-| `think_time` | 2.5 | Sekunden Rechenzeit pro Planung |
-| `after_tap` | 0.45 | Pause nach jedem Tap |
-| `use_boosters` | true | Booster nur, wenn sonst verloren |
-| `booster_order` | super_undo, magnet, shuffle | Reihenfolge der Booster |
-| `allow_coins` | false | Münzen für „Weiterspielen“ usw. ausgeben |
-| `max_levels` | 0 | 0 = endlos |
-| `analysis_width` | 720 | Screenshots für die Analyse auf diese Breite verkleinern |
-
-## Fehlersuche
-
-- **„Kein Android-Gerät gefunden“** → `adb devices` muss das Handy als `device` zeigen.
-- **Tippt nicht** → *USB-Debugging (Sicherheitseinstellungen)* fehlt.
-- **Erkennt etwas falsch** → `python bot.py --debug` laufen lassen; im Ordner
-  `debug/` liegen Bilder mit eingezeichneter Erkennung (Kästchen = Auto in der
-  erkannten Farbe, weißer Punkt = offene Augen, × = Wand, • = Straße).
-  Einzelnes Bild prüfen: `python bot.py --analyze bild.png`.
-  Screenshot vom Handy holen: `python bot.py --screenshot bild.png`.
-- Neue Hindernisse (Kisten, Aufzüge, …) werden als „unbekannt“ behandelt;
-  der Bot verlässt sich dann auf die Augen-Anzeige des Spiels und plant nach
-  jedem Zug neu. Schick mir Debug-Bilder davon, dann baue ich sie gezielt ein.
+| Datei | Inhalt |
+|---|---|
+| `yarn_vision.py` | Erkennung Yarn Loop: Band, Maschenraster, Farbpalette, Spulen, Zahlen |
+| `yarn_digits.py` | Ziffernvorlagen (aus echten Screenshots gelernt) |
+| `yarn_solver.py` | Runden-Simulation und Suche |
+| `yarn_bot.py` | Ablauf, Popups, Levelwechsel |
+| `vision.py`, `solver.py`, `bot.py` | Car Match (und PC-Startprogramm) |
+| `device.py` | ADB (PC) |
+| `android/` | Android-App (Java + Chaquopy-Python) |
+| `.github/workflows/apk.yml` | baut bei jedem Push automatisch die APK und veröffentlicht sie unter *Releases* |

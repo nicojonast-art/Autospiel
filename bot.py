@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Car Match Bot - spielt "Car Match - Traffic Puzzle" (Grand Games) automatisch
+Autospiel - spielt "Yarn Loop" (Standard) oder "Car Match" automatisch
 auf einem per ADB verbundenen Android-Handy (z.B. Xiaomi).
 
 Start:   python bot.py
@@ -450,11 +450,22 @@ def main():
     ap.add_argument("--think", type=float, help="Rechenzeit pro Zug (s)")
     ap.add_argument("--analyze", metavar="BILD", help="Nur ein Screenshot analysieren")
     ap.add_argument("--screenshot", metavar="DATEI", help="Screenshot vom Handy speichern")
+    ap.add_argument("--spiel", choices=["yarn", "car"], default="yarn",
+                    help="yarn = Yarn Loop (Standard), car = Car Match")
     ap.add_argument("--config", default="config.json")
     a = ap.parse_args()
 
     if a.analyze:
-        analyze_file(a.analyze)
+        if a.spiel == "yarn":
+            import yarn_vision as YV
+            img = cv2.imread(a.analyze)
+            scr = YV.analyze(img)
+            print(YV.describe(scr))
+            out = os.path.splitext(a.analyze)[0] + "_erkannt.jpg"
+            cv2.imwrite(out, YV.draw_debug(img, scr))
+            print("Debug-Bild:", out)
+        else:
+            analyze_file(a.analyze)
         return
 
     cfg = dict(DEFAULTS)
@@ -478,11 +489,16 @@ def main():
         cv2.imwrite(a.screenshot, dev.screenshot())
         log(f"Screenshot gespeichert: {a.screenshot}")
         return
-    if not dev.game_running():
-        log("Starte Car Match ...")
-        dev.start_game()
     try:
-        Bot(dev, cfg).run()
+        if a.spiel == "yarn":
+            import yarn_bot
+            ycfg = {"dry_run": cfg["dry_run"], "max_levels": cfg["max_levels"]}
+            yarn_bot.YarnBot(dev, ycfg, log=log).run()
+        else:
+            if not dev.game_running():
+                log("Starte Car Match ...")
+                dev.start_game()
+            Bot(dev, cfg).run()
     except KeyboardInterrupt:
         log("Beendet.")
 

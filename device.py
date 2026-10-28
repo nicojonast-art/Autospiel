@@ -153,15 +153,15 @@ class Device:
         m = re.search(r"([a-zA-Z0-9_.]+/[a-zA-Z0-9_.$]+)", out)
         return m.group(1) if m else ""
 
-    def game_running(self) -> bool:
-        return GAME_PACKAGE in self.foreground()
+    def game_running(self, package=GAME_PACKAGE) -> bool:
+        return package in self.foreground()
 
-    def start_game(self):
-        self.shell(f"monkey -p {GAME_PACKAGE} -c android.intent.category.LAUNCHER 1")
+    def start_game(self, package=GAME_PACKAGE):
+        self.shell(f"monkey -p {package} -c android.intent.category.LAUNCHER 1")
         time.sleep(6)
 
-    def stop_game(self):
-        self.shell(f"am force-stop {GAME_PACKAGE}")
+    def stop_game(self, package=GAME_PACKAGE):
+        self.shell(f"am force-stop {package}")
         time.sleep(1)
 
     def keep_awake(self):
