@@ -261,6 +261,15 @@ class YarnBot:
                     self.tap(col[0].x, col[0].y, "Ueberraschungs-Spule")
                     time.sleep(1.2)
                     return
+            # Nur noch Ablage-Spulen: der Reihe nach probieren statt ewig zu warten
+            slots = [sp for sp in scr.rack if sp is not None]
+            if slots:
+                self.fallback_i = getattr(self, "fallback_i", -1) + 1
+                sp = slots[self.fallback_i % len(slots)]
+                self.futile = set()
+                self.tap(sp.x, sp.y, "Ablage probieren")
+                time.sleep(1.2)
+                return
             self.log("Keine Spule antippbar – warte")
             time.sleep(1.5)
             return
