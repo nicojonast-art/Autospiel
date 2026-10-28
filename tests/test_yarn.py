@@ -35,17 +35,27 @@ def front(scr):
 def test_level4_start():
     s = Y.analyze(load("yarn_056.jpg"))
     assert s.kind == "game"
-    assert (s.lattice.nx, s.lattice.ny) == (20, 21)
-    assert counts(s) == [100, 160, 160]
+    assert (s.lattice.nx, s.lattice.ny) == (20, 20)
+    assert counts(s) == [80, 160, 160]
     assert front(s) == [20, 20, 20]
 
 
 def test_level7_start():
     s = Y.analyze(load("yarn_249.jpg"))
     assert s.kind == "game"
-    assert (s.lattice.nx, s.lattice.ny) == (20, 21)
-    assert sum(counts(s)) == 420
+    assert (s.lattice.nx, s.lattice.ny) == (20, 20)
+    assert sum(counts(s)) == 400
     assert front(s) == [20, 30, 40]
+
+
+def test_level9_lattice():
+    # 20 Spalten (nicht 21) und 20 Reihen - die 3D-Seitenflaeche unten ist keine Reihe
+    s = Y.analyze(load("yarn_lvl9.jpg"))
+    assert s.kind == "game"
+    assert (s.lattice.nx, s.lattice.ny) == (20, 20)
+    c = counts(s)
+    assert sum(c) == 400
+    assert all(n % 10 == 0 for n in c)   # Spulen haben immer Zehnerzahlen
 
 
 def test_rack_numbers():
@@ -74,6 +84,30 @@ def test_offer_popup_is_declined():
     assert taps and taps[0] != "back"
     x, y = taps[0]
     assert y < 700 and x > 900
+
+
+def test_bist_du_sicher_popup():
+    # "Bist du sicher?" nach "Kein Platz mehr!": X oben rechts, nie "Spiel weiter 900"
+    img = load("yarn_sicher.jpg")
+    s = Y.analyze(img)
+    assert s.kind == "popup"
+    closes = [b for b in s.buttons if b[4] == "close"]
+    assert len(closes) == 1          # das Herz im Angebot ist kein X
+    taps = []
+
+    class Dev:
+        def tap(self, x, y):
+            taps.append((x, y))
+
+        def back(self):
+            taps.append("back")
+
+    YB.time.sleep = lambda x: None
+    bot = YB.YarnBot(Dev(), {"dry_run": False}, log=lambda m: None)
+    bot.menu_step(img, s)
+    assert taps and taps[0] != "back"
+    x, y = taps[0]
+    assert abs(x - 990) < 40 and abs(y - 518) < 40
 
 
 def test_lap_simulation():
