@@ -861,6 +861,24 @@ def _bar_at(img, bg, pts, r=4):
     return True
 
 
+def _bar_colors_match(img, pts, spa, spb):
+    """Ein Verbindungsstab verlaeuft farblich von Spule A nach Spule B. Ein
+    fremder (schraeger) Stab, der zufaellig dazwischen kreuzt, hat andere
+    Farben - nur pruefbar, wenn A und B verschieden aussehen."""
+    if spa.lab is None or spb.lab is None:
+        return True
+    la, lb = np.asarray(spa.lab, np.float32), np.asarray(spb.lab, np.float32)
+    if color_distance(la, lb) < 40:
+        return True
+    def patch_lab(x, y, r=3):
+        x, y = int(round(x)), int(round(y))
+        p = img[max(0, y - r):y + r + 1, max(0, x - r):x + r + 1].reshape(-1, 3)
+        return np.median(_lab(p), axis=0)
+    pa, pb = patch_lab(*pts[0]), patch_lab(*pts[-1])
+    return (color_distance(pa, la) < color_distance(pa, lb) + 10 and
+            color_distance(pb, lb) < color_distance(pb, la) + 10)
+
+
 def _find_links(img, belt, columns, rack, bg, max_y=1e9):
     """Doppelspulen: zwei Spulen sind mit einem farbigen Stab verbunden
     (waagerecht oder schraeg zur Nachbarspalte, in der Ablage waagerecht).
@@ -872,14 +890,17 @@ def _find_links(img, belt, columns, rack, bg, max_y=1e9):
         a, b = columns[k], columns[k + 1]
         for ra, spa in enumerate(a):
             for rb, spb in enumerate(b):
-                if abs(ra - rb) > 1 or spa.link is not None or spb.link is not None:
+                if abs(ra - rb) > 2 or spa.link is not None or spb.link is not None:
                     continue
                 ya, yb = spa.y + off, spb.y + off
-                # spool.y ist der Tipp-Punkt (Zahl) - Stab beginnt am Scheibenrand
-                pts = [(spa.x + (spb.x - spa.x) * t, ya + (yb - ya) * t) for t in (0.4, 0.5, 0.6)]
+                # spool.y ist der Tipp-Punkt (Zahl) - Stab beginnt am Scheibenrand.
+                # Ueber zwei Reihen ist der Stab sehr steil: weiter aussen pruefen,
+                # damit ein waagerechter Stab der mittleren Reihe nicht zaehlt.
+                ts = (0.35, 0.5, 0.65) if abs(ra - rb) == 2 else (0.4, 0.5, 0.6)
+                pts = [(spa.x + (spb.x - spa.x) * t, ya + (yb - ya) * t) for t in ts]
                 if max(p[1] for p in pts) > max_y:
                     continue            # hinter den Booster-Knoepfen nicht beurteilbar
-                if _bar_at(img, bg, pts):
+                if _bar_at(img, bg, pts) and _bar_colors_match(img, pts, spa, spb):
                     spa.link = spb.link = lid
                     lid += 1
     for j in range(len(rack) - 1):
