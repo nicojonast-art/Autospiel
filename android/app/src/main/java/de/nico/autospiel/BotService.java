@@ -181,8 +181,13 @@ public class BotService extends Service {
             DisplayManager dmgr = getSystemService(DisplayManager.class);
             Display screen = dmgr.getDisplay(Display.DEFAULT_DISPLAY);
             screen.getRealMetrics(dm);
-            int w = dm.widthPixels;
-            int h = dm.heightPixels;
+            // Halbe Aufloesung reicht fuer die Erkennung und ist ~4x schneller
+            // (weniger Daten kopieren, weniger zu rechnen). Taps rechnet
+            // android_main.py wieder auf den echten Bildschirm hoch.
+            Bridge.screenW = dm.widthPixels;
+            Bridge.screenH = dm.heightPixels;
+            int w = dm.widthPixels / 2;
+            int h = dm.heightPixels / 2;
 
             reader = ImageReader.newInstance(w, h, PixelFormat.RGBA_8888, 3);
             reader.setOnImageAvailableListener(r -> {
@@ -204,7 +209,7 @@ public class BotService extends Service {
                 }
             }, imageHandler);
 
-            display = projection.createVirtualDisplay("Autospiel", w, h, dm.densityDpi,
+            display = projection.createVirtualDisplay("Autospiel", w, h, Math.max(1, dm.densityDpi / 2),
                     DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
                     reader.getSurface(), null, imageHandler);
             Bridge.log("Bildschirmaufnahme laeuft (" + w + "x" + h + ")");
