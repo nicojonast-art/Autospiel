@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Autospiel</string>
-    <string name="subtitle">Spielt Yarn Loop &amp; Car Match automatisch</string>
+    <string name="app_name">Yarn Loop Bot</string>
+    <string name="subtitle">Spielt Yarn Loop automatisch</string>
     <string name="game_title">Spiel</string>
     <string name="game_yarn">Yarn Loop</string>
     <string name="game_car">Car Match</string>
-    <string name="accessibility_label">Autospiel – Taps im Spiel</string>
-    <string name="accessibility_desc">Erlaubt Autospiel, in Yarn Loop bzw. Car Match für dich zu tippen. Es werden keine Inhalte gelesen oder gespeichert.</string>
+    <string name="accessibility_label">Yarn Loop Bot</string>
+    <string name="accessibility_desc">Erlaubt dem Yarn Loop Bot, im Spiel für dich zu tippen. Es werden keine Inhalte gelesen oder gespeichert.</string>
 
     <string name="state_running">Läuft</string>
     <string name="state_ready">Bereit</string>
@@ -20,7 +20,7 @@
 
     <string name="setup_title">Einrichtung</string>
     <string name="step_access">Bedienungshilfe einschalten</string>
-    <string name="step_access_desc">Damit die App für dich tippen kann. In „Bedienungshilfen“ → „Installierte Apps“ → „Autospiel“ einschalten.</string>
+    <string name="step_access_desc">Damit die App für dich tippen kann. In „Bedienungshilfen“ → „Installierte Apps“ → „Yarn Loop Bot“ einschalten.</string>
     <string name="step_restricted">Schalter ausgegraut? App-Info → ⋮ (oben rechts) → „Eingeschränkte Einstellungen zulassen“.</string>
     <string name="app_info">App-Info</string>
     <string name="step_game">%1$s installiert</string>
@@ -46,21 +46,21 @@
     <string name="tip">Tipp: Während des Spielens oben links auf die Pille tippen, um zu stoppen.</string>
 
     <string name="need_access_title">Bedienungshilfe fehlt</string>
-    <string name="need_access_text">Schalte unter „Bedienungshilfen“ → „Installierte Apps“ den Dienst „Autospiel“ ein. Ist er ausgegraut, zuerst in der App-Info oben rechts unter ⋮ „Eingeschränkte Einstellungen zulassen“ tippen.</string>
+    <string name="need_access_text">Schalte unter „Bedienungshilfen“ → „Installierte Apps“ den Dienst „Yarn Loop Bot“ ein. Ist er ausgegraut, zuerst in der App-Info oben rechts unter ⋮ „Eingeschränkte Einstellungen zulassen“ tippen.</string>
     <string name="need_game_title">%1$s fehlt</string>
     <string name="need_game_text">Installiere zuerst „%1$s“ aus dem Play Store.</string>
     <string name="capture_title">Bildschirm freigeben</string>
     <string name="capture_text">Damit der Bot das Spielfeld sieht, fragt Android gleich nach der Bildschirmaufnahme.\n\nWichtig: „Gesamten Bildschirm“ wählen und dann „Starten“ tippen.</string>
     <string name="capture_denied">Ohne Bildschirmaufnahme kann der Bot nichts sehen.</string>
-    <string name="access_hint_toast">„Installierte Apps“ → „Autospiel“ einschalten</string>
+    <string name="access_hint_toast">„Installierte Apps“ → „Yarn Loop Bot“ einschalten</string>
     <string name="open_settings">Einstellungen</string>
     <string name="play_store">Play Store</string>
     <string name="cancel">Abbrechen</string>
     <string name="go">Weiter</string>
 
     <string name="channel_name">Bot läuft</string>
-    <string name="notif_title">Autospiel läuft</string>
+    <string name="notif_title">Yarn Loop Bot läuft</string>
     <string name="notif_text">Das Spiel wird automatisch gespielt</string>
-    <string name="overlay_running">Autospiel · %1$d Level · Stopp</string>
-    <string name="overlay_running_one">Autospiel · 1 Level · Stopp</string>
+    <string name="overlay_running">Bot · %1$d Level · Stopp</string>
+    <string name="overlay_running_one">Bot · 1 Level · Stopp</string>
 </resources>
