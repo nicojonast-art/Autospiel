@@ -72,6 +72,9 @@ public final class Bridge {
     static volatile BotService service;
     static volatile int levels = 0;
     static volatile String status = "";
+    /** Echte Bildschirmgroesse (die Aufnahme ist kleiner). */
+    public static volatile int screenW = 0;
+    public static volatile int screenH = 0;
     static volatile Listener listener;
 
     private Bridge() {
