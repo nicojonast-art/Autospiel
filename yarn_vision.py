@@ -1011,3 +1011,26 @@ def draw_debug(img, scr: YarnScreen):
                         1.0, (255, 255, 0), 2)
     cv2.putText(out, scr.kind, (20, 60), cv2.FONT_HERSHEY_SIMPLEX, 2, (255, 255, 255), 4)
     return out
+
+
+def find_tutorial_arrow(img):
+    """Gruener Tutorial-Pfeil (z.B. "Tippe, um ein Zusatztablett ..." mit
+    Pfeil auf den Gratis-Booster). Rueckgabe: Tipp-Punkt (x, y) oder None."""
+    H, W = img.shape[:2]
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    m = ((hsv[..., 0] >= 35) & (hsv[..., 0] <= 85) & (hsv[..., 1] > 140) & (hsv[..., 2] > 170)).astype(np.uint8)
+    n, lab, st, cen = cv2.connectedComponentsWithStats(m)
+    best = None
+    for i in range(1, n):
+        x, y, w, h, a = st[i]
+        if a < 0.002 * W * H or not (0.5 < h / max(w, 1) < 2.2):
+            continue
+        if a > 0.85 * w * h or a < 0.3 * w * h:      # Knoepfe sind fast voll, Pfeile nicht
+            continue
+        rows = (lab[y:y + h, x:x + w] == i).sum(axis=1)
+        widest = int(np.argmax(rows))
+        down = widest > h * 0.45
+        if best is None or a > best[0]:
+            ty = y + h + 0.75 * h if down else y - 0.75 * h
+            best = (a, (int(x + w / 2), int(min(H - 1, max(0, ty)))))
+    return best[1] if best else None
