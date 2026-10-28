@@ -15,7 +15,8 @@ concurrency:
 jobs:
   test:
     name: Tests (gleiche Bibliotheken wie in der App)
-    runs-on: ubuntu-latest
+    # Ubuntu 22.04: dort gibt es Python 3.9 fuer OpenCV 4.5.1 (wie in der App)
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
