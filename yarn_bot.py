@@ -46,6 +46,7 @@ class YarnBot:
         self.levels_done = 0
         self.level_cells = 0
         self.unknown_since = None
+        self.nospool_since = None
         self.fail_count = 0
         self.last_taps = []
         self.futile = set()          # Ablage-Spulen, die nachweislich nichts nehmen
@@ -169,6 +170,21 @@ class YarnBot:
             time.sleep(0.5)
             img = self.dev.screenshot()
             scr = Y.analyze(img, self.lattice, self.palette)
+        if scr.kind == "game" and not (any(scr.columns) or any(scr.rack)):
+            # Rahmen ohne Spulen: z.B. Startseite mit Bild-Vorschau (sieht aus
+            # wie ein Band). Nach kurzer Zeit den Level-Knopf unten antippen -
+            # bei schweren Levels ist er rot/pink statt gruen.
+            if self.nospool_since is None:
+                self.nospool_since = time.time()
+            elif time.time() - self.nospool_since > 6:
+                H, W = img.shape[:2]
+                self.log("Keine Spulen sichtbar (Startseite?) – tippe Level-Knopf")
+                self.tap(W // 2, int(H * 0.84), "Level starten")
+                self.nospool_since = None
+                time.sleep(3)
+                return
+        else:
+            self.nospool_since = None
         if scr.kind == "game":
             self.unknown_since = None
             self._tapped_continue = False
