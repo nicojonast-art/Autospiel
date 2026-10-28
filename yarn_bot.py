@@ -281,7 +281,10 @@ class YarnBot:
         sent = 0
         used_cols = set()
         rack_sent = False
-        limit = max(1, int(self.cfg["burst"]))
+        # Nur so viele Spulen gleichzeitig losschicken, wie Ablage-Plaetze frei
+        # sind - jede kann im schlimmsten Fall mit Rest in der Ablage landen.
+        free = sum(1 for sp in scr.rack if sp is None)
+        limit = max(1, min(int(self.cfg["burst"]), free))
         for mv in p.moves[: limit * 3]:
             if sent >= limit:
                 break
