@@ -185,8 +185,19 @@ public class TapService extends AccessibilityService {
             return;
         }
         int n = Bridge.levels;
-        overlayText.setText(n == 1 ? getString(R.string.overlay_running_one)
-                : getString(R.string.overlay_running, n));
+        String head = n == 1 ? getString(R.string.overlay_running_one)
+                : getString(R.string.overlay_running, n);
+        // zweite Zeile: was der Bot gerade macht (kurz)
+        String st = Bridge.status == null ? "" : Bridge.status.trim();
+        if (st.startsWith("Sehe: ")) {
+            int a = st.lastIndexOf('(');
+            st = a >= 0 ? "Spielfeld erkannt " + st.substring(a) : "Spielfeld erkannt";
+        }
+        if (st.length() > 52) {
+            st = st.substring(0, 51) + "…";
+        }
+        overlayText.setMaxWidth(dp(240));
+        overlayText.setText(st.isEmpty() ? head : head + "\n" + st);
     }
 
     private int dp(int v) {
