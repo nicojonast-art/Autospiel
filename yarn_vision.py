@@ -987,26 +987,48 @@ def find_knots(img, lat: Lattice, belt: Belt):
 
 
 def apply_knots(grid, lat: Lattice, knots, centers):
-    """Knoten ins Gitter eintragen: Zellen unter dem Knoten bekommen seine Farbe,
-    die Zahl wird auf die Zellen verteilt (Wert = farbe + KNOT * (n - 1))."""
+    """Knoten ins Gitter eintragen. Ein Knoten ist ein Balken/Block in seiner
+    Farbe; die Zahl steht nur in der Mitte. Alle zusammenhaengenden Zellen
+    dieser Farbe rund um die Zahl (hoechstens 5 Zellen weit) gehoeren zum
+    Knoten; die Zahl wird auf sie verteilt (Wert = farbe + KNOT * (n - 1))."""
     if grid is None or not knots or not centers:
         return grid
-    for val, (x0, y0, x1, y1), lab in knots:
+    ny, nx = grid.shape
+    owner = -np.ones((ny, nx), np.int32)
+    dist = np.full((ny, nx), 99, np.int32)
+    colors, frontier = [], []
+    for j, (val, (x0, y0, x1, y1), lab) in enumerate(knots):
         d = [color_distance(lab, c) for c in centers]
         k = int(np.argmin(d))
+        colors.append(k)
         mx, my = 0.35 * lat.px, 0.35 * lat.py
-        cells = []
-        for r in range(lat.ny):
-            for c in range(lat.nx):
+        for r in range(ny):
+            for c in range(nx):
                 cx, cy = lat.center(r, c)
-                if x0 - mx <= cx <= x1 + mx and y0 - my <= cy <= y1 + my:
-                    cells.append((r, c))
+                if x0 - mx <= cx <= x1 + mx and y0 - my <= cy <= y1 + my and dist[r, c] > 0:
+                    owner[r, c], dist[r, c] = j, 0
+                    frontier.append((r, c))
+    # Mehrquellen-Breitensuche ueber Zellen in Knotenfarbe
+    step = 0
+    while frontier and step < 5:
+        step += 1
+        nxt = []
+        for r, c in frontier:
+            j = owner[r, c]
+            for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                rr, cc = r + dr, c + dc
+                if 0 <= rr < ny and 0 <= cc < nx and dist[rr, cc] > step and grid[rr, cc] == colors[j]:
+                    owner[rr, cc], dist[rr, cc] = j, step
+                    nxt.append((rr, cc))
+        frontier = nxt
+    for j, (val, _, _) in enumerate(knots):
+        cells = list(zip(*np.nonzero(owner == j)))
         if not cells:
             continue
         base, extra = divmod(val, len(cells))
-        for j, (r, c) in enumerate(cells):
-            m = base + (1 if j < extra else 0)
-            grid[r, c] = -1 if m <= 0 else k + KNOT * (min(m, 30) - 1)
+        for i, (r, c) in enumerate(cells):
+            m = base + (1 if i < extra else 0)
+            grid[r, c] = -1 if m <= 0 else colors[j] + KNOT * (min(m, 30) - 1)
     return grid
 
 
