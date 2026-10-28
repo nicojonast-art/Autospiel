@@ -270,6 +270,12 @@ class YarnBot:
         t_plan = time.time()
         status("rechne ...")
         p = S.plan(grid, columns, rack, time_limit=self.cfg["think_time"])
+        if p.moves and not p.complete and sum(1 for r in rack if r is None) <= 3:
+            # Keine sichere Loesung gefunden -> deutlich laenger suchen
+            status("rechne laenger ...")
+            p2 = S.plan(grid, columns, rack, time_limit=self.cfg["think_time"] * 5)
+            if p2.moves and (p2.complete or p2.score > p.score):
+                p = p2
         if not p.moves:
             # Keine bekannte Spule -> Ueberraschungsspule vorne antippen
             for i, col in enumerate(scr.columns):
@@ -301,7 +307,7 @@ class YarnBot:
         # sind - jede kann im schlimmsten Fall mit Rest in der Ablage landen.
         free = sum(1 for sp in scr.rack if sp is None)
         limit = max(1, min(int(self.cfg["burst"]), free))
-        if p.dead_end or (not p.complete and free <= 2):
+        if p.dead_end or (not p.complete and free <= 3):
             limit = 1          # knapp/riskant: nach jeder Spule neu nachdenken
         for mv in p.moves[: limit * 3]:
             if sent >= limit:
