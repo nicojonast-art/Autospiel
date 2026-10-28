@@ -86,7 +86,15 @@ class AndroidDevice:
         return img
 
     def tap(self, x, y):
-        if not Bridge.tap(int(x), int(y)):
+        # Aufnahme hat halbe Aufloesung -> auf echte Bildschirmpunkte umrechnen
+        k = 1.0
+        try:
+            if self.size and Bridge.screenW:
+                k = float(Bridge.screenW) / float(self.size[0])
+        except Exception:  # noqa: BLE001
+            k = 1.0
+        x, y = x * k, y * k
+        if not Bridge.tap(int(round(x)), int(round(y))):
             _log("Tippen fehlgeschlagen – ist die Bedienungshilfe an?")
 
     def back(self):
