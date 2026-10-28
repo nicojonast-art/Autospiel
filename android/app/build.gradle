@@ -1,0 +1,64 @@
+plugins {
+    id 'com.android.application'
+    id 'com.chaquo.python'
+}
+
+def buildNumber = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInteger()
+
+android {
+    namespace 'de.nico.autospiel'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'de.nico.autospiel'
+        minSdk 26
+        targetSdk 34
+        versionCode buildNumber
+        versionName "1.${buildNumber}"
+        ndk {
+            // Xiaomi und fast alle aktuellen Handys sind arm64
+            abiFilters 'arm64-v8a'
+        }
+    }
+
+    signingConfigs {
+        release {
+            // Fester Schluessel, damit Updates ohne Deinstallieren gehen
+            storeFile file('autospiel.keystore')
+            storePassword 'autospiel'
+            keyAlias 'autospiel'
+            keyPassword 'autospiel'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+
+    lint {
+        checkReleaseBuilds false
+        abortOnError false
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+chaquopy {
+    defaultConfig {
+        version = "3.10"
+        pip {
+            install "opencv-python==4.5.1.48"
+        }
+    }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'com.google.android.material:material:1.12.0'
+}
