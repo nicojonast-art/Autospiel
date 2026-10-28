@@ -74,6 +74,13 @@ class YarnBot:
                 time.sleep(2)
 
     def reset_level(self):
+        # War das Bild (fast) leer, gilt das Level als geschafft - danach kommt
+        # meist gleich das Gewinn-Fenster, das Bild selbst sieht man nicht leer
+        start = getattr(self, "start_cells", 0)
+        if self.lattice is not None and start and self.level_cells <= max(3, 0.15 * start):
+            self.levels_done += 1
+            self.log(f"Level geschafft! ({self.levels_done})")
+        self.start_cells = 0
         self.lattice = None
         self.palette = None
         self.level_cells = 0
@@ -146,12 +153,11 @@ class YarnBot:
             self.palette = [c for _, c in scr.palette]
             pal = ", ".join(f"{n}" for n, _ in scr.palette)
             self.log(f"Level: {scr.lattice.nx}x{scr.lattice.ny} Maschen, Farben: {pal}")
+            self.start_cells = n_cells
         self.level_cells = n_cells
 
         if n_cells == 0:
             if self.lattice is not None:
-                self.levels_done += 1
-                self.log(f"Level geschafft! ({self.levels_done})")
                 self.reset_level()
             time.sleep(1.5)
             return
