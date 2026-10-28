@@ -91,15 +91,21 @@ class YarnBot:
         return img[belt.y0:belt.y1, belt.x0:belt.x1]
 
     def wait_idle(self):
-        """Wartet, bis Foerderband und Bild sich nicht mehr bewegen."""
+        """Wartet, bis Foerderband und Bild sich nicht mehr bewegen.
+        Faehrt eine Spule endlos im Kreis (nimmt nichts mehr), reicht es, wenn
+        sich das Maschenbild selbst ca. 2,5 s nicht mehr veraendert."""
         t_end = time.time() + self.cfg["idle_timeout"]
-        prev = None
-        calm = 0
+        prev = prev_pic = None
+        calm = calm_pic = 0
         img = self.dev.screenshot()
         while True:
             belt = Y.find_belt(img)
             reg = self._motion_region(img, belt)
             small = cv2.resize(reg, (120, 140), interpolation=cv2.INTER_AREA).astype(np.int16)
+            pic = None
+            if belt is not None:
+                X0, Y0, X1, Y1 = Y.picture_region(belt)
+                pic = cv2.resize(img[Y0:Y1, X0:X1], (100, 120), interpolation=cv2.INTER_AREA).astype(np.int16)
             if prev is not None and prev.shape == small.shape:
                 # Bewegung = einzelne Bildpunkte aendern sich stark (fahrende Spule,
                 # Faden). Kompressionsrauschen bleibt weit darunter.
@@ -107,7 +113,12 @@ class YarnBot:
                 calm = calm + 1 if moving < 4 else 0
                 if calm >= 2:
                     return img
-            prev = small
+            if pic is not None and prev_pic is not None and prev_pic.shape == pic.shape:
+                moving_pic = int((np.abs(pic - prev_pic).max(axis=2) > 50).sum())
+                calm_pic = calm_pic + 1 if moving_pic < 3 else 0
+                if calm_pic >= 7:
+                    return img
+            prev, prev_pic = small, pic
             if belt is None:
                 # Popup/Menue: dort blinkt und glitzert immer etwas (Knopf-Glanz,
                 # Mini-Foerderband) - nicht auf Stillstand warten
@@ -119,8 +130,11 @@ class YarnBot:
 
     # ------------------------------------------------------------------ Hauptschritt
     def step(self):
+        t0 = time.time()
         img = self.wait_idle()
+        t1 = time.time()
         scr = Y.analyze(img, self.lattice, self.palette)
+        self._timing = f"warten {t1 - t0:.1f} s, erkennen {time.time() - t1:.1f} s"
         # Spulen rutschen evtl. noch nach -> Zahl unlesbar: kurz warten, neu lesen
         for _ in range(3):
             if scr.kind != "game":
@@ -163,7 +177,9 @@ class YarnBot:
             return
 
         grid, columns, rack, taps = self.model(scr)
-        self.log("Sehe: " + self._describe(scr, grid, columns, rack))
+        self.log("Sehe: " + self._describe(scr, grid, columns, rack)
+                 + f" ({getattr(self, '_timing', '')})")
+        t_plan = time.time()
         p = S.plan(grid, columns, rack, time_limit=self.cfg["think_time"])
         if not p.moves:
             # Keine bekannte Spule -> Ueberraschungsspule vorne antippen
@@ -176,7 +192,8 @@ class YarnBot:
             time.sleep(1.5)
             return
         state = "Loesung gefunden" if p.complete else ("alles riskant" if p.dead_end else "beste Fortsetzung")
-        self.log(f"Plan ({state}): {len(p.moves)} Zuege, {n_cells} Maschen uebrig")
+        self.log(f"Plan ({state}): {len(p.moves)} Zuege, {n_cells} Maschen uebrig, "
+                 f"{time.time() - t_plan:.1f} s gerechnet")
 
         # Die ersten Zuege ausfuehren (Spalten-Zuege duerfen gebuendelt werden)
         sent = 0
