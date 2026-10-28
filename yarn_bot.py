@@ -113,7 +113,7 @@ class YarnBot:
     def wait_idle(self):
         """Wartet, bis Foerderband und Bild sich nicht mehr bewegen.
         Faehrt eine Spule endlos im Kreis (nimmt nichts mehr), reicht es, wenn
-        sich das Maschenbild selbst ca. 2,5 s nicht mehr veraendert."""
+        sich das Maschenbild selbst ca. 1,5 s nicht mehr veraendert."""
         t_end = time.time() + self.cfg["idle_timeout"]
         prev = prev_pic = None
         calm = calm_pic = 0
@@ -136,7 +136,7 @@ class YarnBot:
             if pic is not None and prev_pic is not None and prev_pic.shape == pic.shape:
                 moving_pic = int((np.abs(pic - prev_pic).max(axis=2) > 50).sum())
                 calm_pic = calm_pic + 1 if moving_pic < 3 else 0
-                if calm_pic >= 7:
+                if calm_pic >= 4:
                     return img
             prev, prev_pic = small, pic
             if belt is None:
@@ -272,13 +272,21 @@ class YarnBot:
         sent = 0
         used_cols = set()
         rack_sent = False
-        for mv in p.moves[: max(1, int(self.cfg["burst"]))]:
-            # Ablage-Plaetze ruecken nach, sobald eine Ablage-Spule losfaehrt ->
-            # pro Runde hoechstens eine Ablage-Spule, Spalten beliebig viele
-            if mv.source != "col" and rack_sent:
+        limit = max(1, int(self.cfg["burst"]))
+        for mv in p.moves[: limit * 3]:
+            if sent >= limit:
                 break
             key = (mv.source, mv.index)
-            if key not in taps:
+            if mv.source != "col":
+                # Ablage-Plaetze ruecken nach, sobald eine Ablage-Spule losfaehrt ->
+                # pro Runde hoechstens eine Ablage-Spule; Ablage-Zuege auf Spulen,
+                # die erst noch in die Ablage kommen, ueberspringen (naechste Runde)
+                # statt abzubrechen - die Spalten-Zuege danach laufen trotzdem.
+                if rack_sent or key not in taps:
+                    if sent == 0:
+                        break
+                    continue
+            elif key not in taps:
                 break
             if mv.source == "col" and (mv.index in used_cols or
                                        (mv.partner and mv.partner[1] in used_cols)):
