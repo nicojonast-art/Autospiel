@@ -1,0 +1,29 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Dach -->
+    <path android:fillColor="#FFFFFF"
+        android:pathData="M37,50 L44,36 Q46,32 51,32 L57,32 Q62,32 64,36 L71,50 Z" />
+    <!-- Karosserie -->
+    <path android:fillColor="#FFFFFF"
+        android:pathData="M33,48 L75,48 Q83,48 83,56 L83,66 Q83,72 77,72 L31,72 Q25,72 25,66 L25,56 Q25,48 33,48 Z" />
+    <!-- Windschutzscheibe -->
+    <path android:fillColor="#2B2E5A"
+        android:pathData="M42,47 L47,38 Q48,36 51,36 L57,36 Q60,36 61,38 L66,47 Z" />
+    <!-- Augen -->
+    <path android:fillColor="#FFFFFF"
+        android:pathData="M46.5,42.5 a3.5,3.5 0 1,0 7,0 a3.5,3.5 0 1,0 -7,0 Z M54.5,42.5 a3.5,3.5 0 1,0 7,0 a3.5,3.5 0 1,0 -7,0 Z" />
+    <path android:fillColor="#14163A"
+        android:pathData="M49,43 a1.6,1.6 0 1,0 3.2,0 a1.6,1.6 0 1,0 -3.2,0 Z M57,43 a1.6,1.6 0 1,0 3.2,0 a1.6,1.6 0 1,0 -3.2,0 Z" />
+    <!-- Scheinwerfer -->
+    <path android:fillColor="#FFC24B"
+        android:pathData="M29,58 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0 Z M73,58 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0 Z" />
+    <!-- Grill -->
+    <path android:fillColor="#FFD2B8"
+        android:pathData="M44,62 L64,62 Q66,62 66,64 Q66,66 64,66 L44,66 Q42,66 42,64 Q42,62 44,62 Z" />
+    <!-- Raeder -->
+    <path android:fillColor="#2B2E5A"
+        android:pathData="M30,72 a7,7 0 1,0 14,0 a7,7 0 1,0 -14,0 Z M64,72 a7,7 0 1,0 14,0 a7,7 0 1,0 -14,0 Z" />
+</vector>
