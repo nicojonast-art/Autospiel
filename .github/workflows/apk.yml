@@ -73,6 +73,17 @@ jobs:
       - name: APK bereitstellen
         run: cp android/app/build/outputs/apk/release/app-release.apk YarnLoop-Bot.apk
 
+      # Zweite Variante fuer PC-Emulatoren (MuMu, BlueStacks ...): dort laeuft
+      # die Handy-Version nur uebersetzt und sehr langsam.
+      - name: APK fuer Emulator bauen
+        working-directory: android
+        continue-on-error: true
+        run: gradle assembleRelease -Pabi=x86_64 --stacktrace --no-daemon
+
+      - name: Emulator-APK bereitstellen
+        continue-on-error: true
+        run: cp android/app/build/outputs/apk/release/app-release.apk YarnLoop-Bot-Emulator.apk
+
       - uses: actions/upload-artifact@v4
         with:
           name: YarnLoop-Bot-apk
@@ -84,10 +95,15 @@ jobs:
           tag_name: v1.${{ github.run_number }}
           name: Yarn Loop Bot v1.${{ github.run_number }}
           make_latest: true
-          files: YarnLoop-Bot.apk
+          files: |
+            YarnLoop-Bot.apk
+            YarnLoop-Bot-Emulator.apk
+          fail_on_unmatched_files: false
           body: |
             ## Yarn Loop Bot – spielt Yarn Loop automatisch
 
             **Installieren:** auf dem Handy unten bei „Assets“ **`YarnLoop-Bot.apk`** antippen → herunterladen → öffnen → installieren
             (beim ersten Mal „Unbekannte Apps installieren“ für den Browser erlauben).
             Neuere Versionen einfach über die alte installieren.
+
+            **PC-Emulator (MuMu Player, BlueStacks):** `YarnLoop-Bot-Emulator.apk` nehmen – die läuft dort viel schneller.
