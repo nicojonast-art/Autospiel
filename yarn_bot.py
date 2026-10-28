@@ -48,6 +48,9 @@ class YarnBot:
         self.unknown_since = None
         self.fail_count = 0
         self.last_taps = []
+        self.futile = set()          # Ablage-Spulen, die nachweislich nichts nehmen
+        self.last_rack_move = None
+        self.prev_cells = None
 
     # ------------------------------------------------------------------ Hilfen
     def tap(self, x, y, why=""):
@@ -85,6 +88,9 @@ class YarnBot:
             self.levels_done += 1
             self.log(f"Level geschafft! ({self.levels_done})")
         self.start_cells = 0
+        self.futile = set()
+        self.last_rack_move = None
+        self.prev_cells = None
         self.lattice = None
         self.palette = None
         self.level_cells = 0
@@ -184,6 +190,23 @@ class YarnBot:
             return
 
         grid, columns, rack, taps = self.model(scr)
+        # Schutz vor Endlosschleifen: Kommt eine Ablage-Spule unveraendert
+        # zurueck (gleiche Zahl, Bild nicht kleiner), nimmt sie in Wirklichkeit
+        # nichts - dann liegen lassen, bis sich das Bild veraendert hat.
+        if self.prev_cells is not None:
+            if n_cells < self.prev_cells - 2:
+                self.futile.clear()
+            elif self.last_rack_move is not None and n_cells >= self.prev_cells - 1:
+                c, n = self.last_rack_move
+                if any(r is not None and r[0] == c and r[1] == n for r in rack):
+                    if (c, n) not in self.futile:
+                        self.log(f"Ablage-Spule {self._cname(scr, c)} {n} nimmt nichts – bleibt liegen")
+                    self.futile.add((c, n))
+        if self.futile:
+            rack = [(S.UNKNOWN_COLOR, r[1], -1) if r is not None and (r[0], r[1]) in self.futile else r
+                    for r in rack]
+        self.prev_cells = n_cells
+        self.last_rack_move = None
         self.log("Sehe: " + self._describe(scr, grid, columns, rack)
                  + f" ({getattr(self, '_timing', '')})")
         t_plan = time.time()
@@ -216,6 +239,8 @@ class YarnBot:
                                        (mv.partner and mv.partner[1] in used_cols)):
                 time.sleep(0.6)       # naechste Spule rutscht nach vorne
             x, y = taps[key]
+            if sent == 0 and mv.source == "rack" and mv.partner is None:
+                self.last_rack_move = (mv.color, mv.count)
             what = "Ablage" if mv.source == "rack" else f"Spalte {mv.index + 1}"
             if mv.partner is not None:
                 what += f" + Partner ({self._cname(scr, mv.partner[2])} {mv.partner[3]})"
