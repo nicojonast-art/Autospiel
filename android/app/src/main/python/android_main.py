@@ -117,7 +117,8 @@ def _make_bot(game, cfg, dev):
         return B.Bot(dev, c)
     import yarn_bot as YB
     YB.time = _Zeit
-    c = {"think_time": float(cfg.get("think_time", 2.0)), "dry_run": False, "max_levels": 0}
+    c = {"think_time": float(cfg.get("think_time", 2.0)), "dry_run": False, "max_levels": 0,
+         "package": dev.package}
     return YB.YarnBot(dev, c, log=_log)
 
 
@@ -129,7 +130,7 @@ def run(config_json="{}"):
     game = cfg.get("game", "yarn")
     if game not in GAMES:
         game = "yarn"
-    dev = AndroidDevice(GAMES[game])
+    dev = AndroidDevice(cfg.get("package") or GAMES[game])
     bot = _make_bot(game, cfg, dev)
     name = "Yarn Loop" if game == "yarn" else "Car Match"
     _log(f"Bot gestartet – {name} wird geoeffnet")
