@@ -1,29 +1,30 @@
-# Autospiel
+# 🧶 Yarn Loop Bot
 
-Spielt **Yarn Loop** (Combo Game) und **Car Match** (Grand Games) automatisch –
-direkt auf dem Handy als App oder vom PC aus (ADB / MuMu Player).
+Spielt **Yarn Loop** (Combo Game) auf deinem Handy automatisch – Level für Level.
 
-## 📱 App auf dem Handy (Xiaomi & Co.)
+## ⬇️ APK herunterladen
 
-### Installieren
-1. Auf dem Handy öffnen: **github.com/nicojonast-art/Autospiel/releases/latest**
-2. Unter „Assets“ auf **`Autospiel.apk`** tippen → herunterladen → öffnen → **Installieren**.
-   Beim ersten Mal fragt Android, ob der Browser Apps installieren darf → erlauben.
-3. Neuere Versionen genauso installieren – die alte wird einfach ersetzt.
+### 👉 [**YarnLoop-Bot.apk herunterladen**](https://github.com/nicojonast-art/Autospiel/releases/latest/download/YarnLoop-Bot.apk)
+
+Diesen Link **auf dem Handy** öffnen → Datei öffnen → **Installieren**.
+Beim ersten Mal fragt Android, ob der Browser Apps installieren darf → erlauben.
+Alle Versionen: [Releases](https://github.com/nicojonast-art/Autospiel/releases) · Neue Versionen einfach über die alte installieren.
+
+## 📱 Einrichten und spielen
 
 ### Einrichten (einmalig, die App zeigt alles mit ✓ an)
-1. **Bedienungshilfe**: In der App auf „Einschalten“ → *Installierte Apps* → **Autospiel** → an.
-   *Xiaomi/Android 13+: Ist der Schalter ausgegraut?* App-Info von Autospiel öffnen →
+1. **Bedienungshilfe**: In der App auf „Einschalten“ → *Installierte Apps* → **Yarn Loop Bot** → an.
+   *Xiaomi/Android 13+: Ist der Schalter ausgegraut?* App-Info von „Yarn Loop Bot“ öffnen →
    oben rechts **⋮** → **„Eingeschränkte Einstellungen zulassen“** → danach geht's.
 2. **Spiel installiert**: Yarn Loop aus dem Play Store.
 3. **Akku: keine Einschränkung** – sonst beendet Xiaomi den Bot im Hintergrund.
 4. **Benachrichtigung** erlauben (zeigt Stopp-Knopf).
 
 ### Spielen
-1. Oben **Yarn Loop** (oder Car Match) wählen → **Start**.
+1. Oben ist **Yarn Loop** ausgewählt → **Start** tippen.
 2. Android fragt nach der Bildschirmaufnahme → **„Gesamten Bildschirm“** wählen → **Starten**.
 3. Die App öffnet das Spiel und spielt los. Oben links schwebt eine kleine Pille
-   „Autospiel · 3 Level · Stopp“ – antippen = stoppen. Stoppen geht auch über die Benachrichtigung.
+   „Bot · 3 Level · Stopp“ – antippen = stoppen. Stoppen geht auch über die Benachrichtigung.
 
 ## 🧠 So spielt der Bot Yarn Loop
 
@@ -51,7 +52,7 @@ immer mit X / Zurück geschlossen. Nach einem Verlust tippt der Bot „Versuche 
 
 ```
 python bot.py                # Yarn Loop (Standard)
-python bot.py --spiel car    # Car Match
+python bot.py --spiel car    # Car Match (zweites Spiel, ebenfalls eingebaut)
 python bot.py --dry-run      # nur anzeigen, nicht tippen
 python bot.py --analyze bild.png   # einen Screenshot auswerten
 ```
