@@ -214,7 +214,11 @@ def apply(st, mv, lane_list):
     if taken == 0 and mv.source == "rack":
         dead = True          # nutzlose Runde - Spule kaeme nur zurueck
     left = [(sp[k][0], rests[k]) for k in range(len(sp)) if rests[k] > 0]
-    keep_link = lid if len(left) == 2 else -1
+    keep_link = -1
+    if len(sp) == 2 and left:
+        # Doppelspule: bleibt zusammen - auch die leere (0) belegt einen Platz
+        left = [(sp[k][0], max(0, rests[k])) for k in range(2)]
+        keep_link = lid if lid >= 0 else 999
     for color, rest in left:
         if None in rack:
             rack[rack.index(None)] = (color, rest, keep_link)
