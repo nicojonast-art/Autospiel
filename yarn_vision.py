@@ -386,6 +386,8 @@ def _best_count_all(prof, w, pmin, pmax):
     if best <= 0:
         return max(1, int(round(w / ((pmin + pmax) / 2))))
     good = [n for n, sc in scores.items() if sc >= 0.5 * best and sc >= 0.12]
+    if not good:
+        return max(scores, key=scores.get)
     return max(good)
 
 
