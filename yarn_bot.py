@@ -30,6 +30,10 @@ def _log(msg):
     print(time.strftime("%H:%M:%S"), msg, flush=True)
 
 
+def status(msg):
+    """Kurzer Zwischenstand (auf dem Handy in der Stopp-Pille), kein Protokoll."""
+
+
 class YarnBot:
     def __init__(self, dev, cfg=None, log=None):
         self.dev = dev
@@ -125,14 +129,17 @@ class YarnBot:
                 t_end = min(t_end, time.time() + 1.5)
             if time.time() > t_end:
                 return img
+            status(f"warte, bis das Band still steht ... {time.time() - t_end + self.cfg['idle_timeout']:.0f} s")
             time.sleep(0.35)
             img = self.dev.screenshot()
 
     # ------------------------------------------------------------------ Hauptschritt
     def step(self):
         t0 = time.time()
+        status("warte, bis das Band still steht ...")
         img = self.wait_idle()
         t1 = time.time()
+        status(f"erkenne Spielfeld ... (gewartet {t1 - t0:.1f} s)")
         scr = Y.analyze(img, self.lattice, self.palette)
         self._timing = f"warten {t1 - t0:.1f} s, erkennen {time.time() - t1:.1f} s"
         # Spulen rutschen evtl. noch nach -> Zahl unlesbar: kurz warten, neu lesen
@@ -180,6 +187,7 @@ class YarnBot:
         self.log("Sehe: " + self._describe(scr, grid, columns, rack)
                  + f" ({getattr(self, '_timing', '')})")
         t_plan = time.time()
+        status("rechne ...")
         p = S.plan(grid, columns, rack, time_limit=self.cfg["think_time"])
         if not p.moves:
             # Keine bekannte Spule -> Ueberraschungsspule vorne antippen
