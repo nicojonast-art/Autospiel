@@ -71,22 +71,23 @@ jobs:
         run: gradle assembleRelease --stacktrace --no-daemon
 
       - name: APK bereitstellen
-        run: cp android/app/build/outputs/apk/release/app-release.apk Autospiel.apk
+        run: cp android/app/build/outputs/apk/release/app-release.apk YarnLoop-Bot.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Autospiel-apk
-          path: Autospiel.apk
+          name: YarnLoop-Bot-apk
+          path: YarnLoop-Bot.apk
 
       - name: Release veroeffentlichen
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.${{ github.run_number }}
-          name: Autospiel v1.${{ github.run_number }}
+          name: Yarn Loop Bot v1.${{ github.run_number }}
           make_latest: true
-          files: Autospiel.apk
+          files: YarnLoop-Bot.apk
           body: |
-            **Autospiel** – spielt Yarn Loop und Car Match automatisch.
+            ## Yarn Loop Bot – spielt Yarn Loop automatisch
 
-            Installieren: auf dem Handy `Autospiel.apk` unten antippen → herunterladen → öffnen → installieren
+            **Installieren:** auf dem Handy unten bei „Assets“ **`YarnLoop-Bot.apk`** antippen → herunterladen → öffnen → installieren
             (beim ersten Mal „Unbekannte Apps installieren“ für den Browser erlauben).
+            Neuere Versionen einfach über die alte installieren.
