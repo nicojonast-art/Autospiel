@@ -131,6 +131,12 @@ public final class Bridge {
         notifyChanged();
     }
 
+    /** Nur die Statuszeile (Stopp-Pille) aendern, ohne Protokolleintrag. */
+    public static void setStatus(String message) {
+        status = message;
+        notifyChanged();
+    }
+
     public static void setLevels(int n) {
         if (n != levels) {
             levels = n;
