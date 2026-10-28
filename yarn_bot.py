@@ -301,6 +301,8 @@ class YarnBot:
         # sind - jede kann im schlimmsten Fall mit Rest in der Ablage landen.
         free = sum(1 for sp in scr.rack if sp is None)
         limit = max(1, min(int(self.cfg["burst"]), free))
+        if p.dead_end or (not p.complete and free <= 2):
+            limit = 1          # knapp/riskant: nach jeder Spule neu nachdenken
         for mv in p.moves[: limit * 3]:
             if sent >= limit:
                 break
