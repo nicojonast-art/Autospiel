@@ -26,6 +26,28 @@ import numpy as np
 
 RACK_SIZE = 5
 UNKNOWN_COLOR = -2
+# Fadenknoten: eine Zelle mit mehreren Faeden. Gitterwert = farbe + KNOT*(n-1).
+# Jede Bahn nimmt pro Runde einen Faden davon; bei 0 ist die Zelle frei.
+KNOT = 64
+
+
+def _take(grid, cell):
+    v = int(grid[cell])
+    grid[cell] = v - KNOT if v >= KNOT else -1
+
+
+def weight(grid):
+    """Maschen insgesamt (Knoten zaehlen mit ihrer Fadenzahl)."""
+    g = grid[grid >= 0].astype(np.int32)
+    return int((g // KNOT + 1).sum())
+
+
+def color_counts(grid):
+    out = {}
+    for v in grid[grid >= 0].ravel():
+        v = int(v)
+        out[v % KNOT] = out.get(v % KNOT, 0) + v // KNOT + 1
+    return out
 
 
 def lanes(ny, nx):
@@ -71,8 +93,8 @@ def run_lap(grid, color, count, lane_list=None):
         if cell is None:
             continue
         r, c = cell
-        if grid[r, c] == color:
-            grid[r, c] = -1
+        if grid[r, c] % KNOT == color:
+            _take(grid, (r, c))
             count -= 1
             taken += 1
     return taken, count
@@ -95,8 +117,8 @@ def run_lap_multi(grid, spools, lane_list=None):
             cell = front_cell(grid, kind, i)
             if cell is None:
                 break
-            if grid[cell] == color:
-                grid[cell] = -1
+            if grid[cell] % KNOT == color:
+                _take(grid, cell)
                 rest[k] -= 1
                 taken += 1
     return taken, rest
@@ -228,7 +250,7 @@ def apply(st, mv, lane_list):
 
 
 def cells_left(st):
-    return int((st.grid >= 0).sum())
+    return weight(st.grid)
 
 
 # Strafpunkte fuer belegte Ablageplaetze (0..5 belegt). Eine Masche zaehlt 10.
@@ -243,7 +265,7 @@ def exposed_by_color(grid, lane_list):
     for kind, i in lane_list:
         cell = front_cell(grid, kind, i)
         if cell is not None:
-            v = int(grid[cell])
+            v = int(grid[cell]) % KNOT
             out[v] = out.get(v, 0) + 1
     return out
 
@@ -258,10 +280,7 @@ def evaluate(st, lane_list):
     score = st.removed * 10.0
     score -= RACK_PENALTY[min(len(rack), RACK_SIZE)]
     exposed = exposed_by_color(st.grid, lane_list)
-    remaining = {}
-    for v in st.grid.ravel():
-        if v >= 0:
-            remaining[int(v)] = remaining.get(int(v), 0) + 1
+    remaining = color_counts(st.grid)
     for color, count, _lid in rack:
         # Farbe fertig, Spule bleibt fuer immer liegen -> Platz ist verloren
         if color >= 0 and remaining.get(color, 0) == 0:
@@ -282,7 +301,7 @@ def evaluate(st, lane_list):
         best_now = max(best_now, bonus)
     score += best_now * 2.0
     # Farben, fuer die keine Spule mehr bekannt ist, aber Maschen da sind
-    colors_left = set(int(v) for v in np.unique(st.grid) if v >= 0)
+    colors_left = set(color_counts(st.grid))
     have = set(c[0] for col in st.cols for c in col) | set(r[0] for r in rack)
     unknown_spools = UNKNOWN_COLOR in have
     for c in colors_left:
@@ -378,10 +397,7 @@ def _leaf_score(st, lane_list):
     rack = [r for r in st.rack if r]
     score = st.removed * 10.0 - RACK_PENALTY[min(len(rack), RACK_SIZE)]
     exposed = exposed_by_color(st.grid, lane_list)
-    remaining = {}
-    for v in st.grid.ravel():
-        if v >= 0:
-            remaining[int(v)] = remaining.get(int(v), 0) + 1
+    remaining = color_counts(st.grid)
     for color, count, _ in rack:
         if remaining.get(color, 0) == 0:
             score -= 400.0
