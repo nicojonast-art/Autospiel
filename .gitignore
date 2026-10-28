@@ -5,3 +5,7 @@ debug/
 *.png
 .venv/
 venv/
+
+# Signaturschluessel nie ins Repo
+*.keystore
+*.jks
