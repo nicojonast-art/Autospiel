@@ -8,8 +8,14 @@
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <queries>
+        <package android:name="com.combo.yarnflow" />
         <package android:name="com.grandgames.carmatch" />
         <package android:name="com.android.vending" />
+        <!-- Startbare Apps sehen, um das Spiel auch ueber seinen Namen zu finden -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
     </queries>
 
     <application
