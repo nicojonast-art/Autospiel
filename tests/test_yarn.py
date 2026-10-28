@@ -152,3 +152,38 @@ if __name__ == "__main__":
                 fails += 1
                 print("FAIL", name, repr(e))
     sys.exit(1 if fails else 0)
+
+
+def test_linked_spools_level11():
+    # Level 11: zwei Spalten, weisse 10 und gruene 20 sind verbunden (Doppelspule),
+    # hintere Spulen zeigen ihre Zahl blass - wird trotzdem gelesen
+    s = Y.analyze(load("yarn_lvl11.jpg"))
+    assert s.kind == "game"
+    assert len(s.columns) == 2
+    a, b = s.columns[0][0], s.columns[1][0]
+    assert a.link is not None and a.link == b.link
+    assert [sp.count for sp in s.columns[0]] == [10, 10, 10]
+    assert [sp.count for sp in s.columns[1]] == [20, 30, 30]
+    assert all(sp.link is None for col in s.columns for sp in col[1:])
+
+
+def test_linked_spools_in_rack():
+    s = Y.analyze(load("yarn_rackpair.jpg"))
+    r = s.rack
+    assert r[0] is not None and r[1] is not None
+    assert (r[0].count, r[1].count) == (10, 5)
+    assert r[0].link is not None and r[0].link == r[1].link
+
+
+def test_pair_moves_together():
+    g = np.full((2, 3), -1, np.int16)
+    g[1, :] = [0, 1, 0]
+    cols = [[(0, 2, 7)], [(1, 1, 7)]]
+    p = S.plan(g, cols, [None] * 5, time_limit=0.5)
+    assert p.complete
+    mv = p.moves[0]
+    assert mv.partner is not None
+    # einzeln waere keine der beiden antippbar, wenn der Partner nicht vorne steht
+    st_cols = [[(0, 2, 7)], [(1, 1, -1), (1, 1, 7)]]
+    st = S.State(g, tuple(tuple(S._norm(x) for x in c) for c in st_cols), (None,) * 5)
+    assert all(m.index != 0 for m in S.moves(st))
