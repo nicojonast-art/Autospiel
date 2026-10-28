@@ -167,6 +167,7 @@ class YarnBot:
             scr = Y.analyze(img, self.lattice, self.palette)
         if scr.kind == "game":
             self.unknown_since = None
+            self._tapped_continue = False
             self.game_step(img, scr)
         else:
             self.menu_step(img, scr)
@@ -418,10 +419,19 @@ class YarnBot:
             self.dev.start_game(self.cfg["package"])
             self.unknown_since = None
             return
+        if 5 < waited and not getattr(self, "_tapped_continue", False):
+            # z.B. "Wochen-Serie ... Tippen zum Fortfahren": irgendwo antippen.
+            # Unten in der Mitte liegt sonst hoechstens der Level-Start-Knopf.
+            self.log("Unbekannter Bildschirm – tippe zum Fortfahren")
+            self.tap(W // 2, int(H * 0.79), "Fortfahren")
+            self._tapped_continue = True
+            time.sleep(2)
+            return
         if waited > 25:
             self.log("Unbekannter Bildschirm (Werbung?) – Zuruecktaste")
             self.dev.back()
             self.unknown_since = time.time() - 10
+            self._tapped_continue = False
             time.sleep(2)
             return
         time.sleep(1.0)
