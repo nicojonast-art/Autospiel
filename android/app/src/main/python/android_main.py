@@ -57,6 +57,24 @@ def _status(msg):
         pass
 
 
+_last_dbg = [0.0]
+
+
+def _debug_frame(img):
+    """Letztes Bild als JPEG/Base64 bereithalten (Knopf 'Bild kopieren')."""
+    now = _time.time()
+    if now - _last_dbg[0] < 1.0:
+        return
+    _last_dbg[0] = now
+    try:
+        import base64
+        ok, buf = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 80])
+        if ok:
+            Bridge.setDebugImage("YLIMG:" + base64.b64encode(buf.tobytes()).decode("ascii"))
+    except Exception:  # noqa: BLE001
+        pass
+
+
 class AndroidDevice:
     """Gleiche Schnittstelle wie device.Device (ADB), aber direkt auf dem Handy."""
 
@@ -83,6 +101,7 @@ class AndroidDevice:
         rgba = raw[8:8 + w * h * 4].reshape(h, w, 4)
         img = cv2.cvtColor(rgba, cv2.COLOR_RGBA2BGR)   # Kopie -> Java-Puffer wieder frei
         self.size = (w, h)
+        _debug_frame(img)
         return img
 
     def tap(self, x, y):
