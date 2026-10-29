@@ -208,6 +208,7 @@ class YarnBot:
             pal = ", ".join(f"{n}" for n, _ in scr.palette)
             self.log(f"Level: {scr.lattice.nx}x{scr.lattice.ny} Maschen, Farben: {pal}")
             self.start_cells = n_cells
+            self._dump_grid(scr)
         self.level_cells = n_cells
 
         if n_cells == 0:
@@ -347,6 +348,30 @@ class YarnBot:
             sent += 1
             time.sleep(0.35)
         time.sleep(0.3)
+
+    def _dump_grid(self, scr):
+        """Gitter zeilenweise ins Protokoll (fuer die Fehlersuche).
+        Grossbuchstabe = Farbe (A = 1. Farbe), klein = Knoten, . = leer."""
+        try:
+            g = scr.grid
+            legend = " ".join(f"{chr(65 + i)}={n}" for i, (n, _) in enumerate(scr.palette))
+            lines = []
+            for r in range(g.shape[0]):
+                row = ""
+                for v in g[r]:
+                    v = int(v)
+                    if v < 0:
+                        row += "."
+                    else:
+                        ch = chr(65 + v % S.KNOT)
+                        row += ch.lower() if v >= S.KNOT or (scr.info.get("knots") and False) else ch
+                lines.append(f"G{r:02d} {row}")
+            # Neueste Zeile steht oben -> rueckwaerts eintragen
+            for ln in reversed(lines):
+                self.log(ln)
+            self.log(f"Gitter {g.shape[1]}x{g.shape[0]}: {legend} Knoten {scr.info.get('knots')}")
+        except Exception as e:
+            self.log(f"Gitter-Ausgabe fehlgeschlagen: {e}")
 
     def _describe(self, scr, grid, columns, rack):
         """Kurzbeschreibung fuer das Protokoll: was der Bot erkannt hat."""
