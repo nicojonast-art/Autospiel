@@ -140,6 +140,17 @@ public class MainActivity extends AppCompatActivity implements Bridge.Listener {
                 notifyLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
             }
         });
+        findViewById(R.id.btn_copy_img).setOnClickListener(v -> {
+            String data = Bridge.debugImage;
+            if (data == null || data.isEmpty()) {
+                Toast.makeText(this, "Noch kein Bild", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            android.content.ClipboardManager cm =
+                    (android.content.ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+            cm.setPrimaryClip(android.content.ClipData.newPlainText("bild", data));
+            Toast.makeText(this, "Bild kopiert (" + (data.length() / 1024) + " KB)", Toast.LENGTH_SHORT).show();
+        });
         findViewById(R.id.btn_clear_log).setOnClickListener(v -> {
             Bridge.clearLog();
             refresh();
