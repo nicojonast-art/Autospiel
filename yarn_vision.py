@@ -790,6 +790,25 @@ def _spool_at(img, belt, cx, disc_y, body_y, bg, where, occl_y=None):
     return Spool(None, num, int(cx), int(disc_y + 20 * s), lab, where)
 
 
+def _bottom_bar_any(img):
+    """Booster-Leiste in beliebiger Farbe (je nach Level blau, pink, ...):
+    erste Zeilen im unteren Fuenftel, die ueber die ganze Breite gleichfarbig
+    und kraeftig gefaerbt sind."""
+    H = img.shape[0]
+    y0 = int(H * 0.8)
+    reg = img[y0:].astype(np.int16)
+    hsv = cv2.cvtColor(img[y0:], cv2.COLOR_BGR2HSV)
+    med = np.median(reg, axis=1)
+    close = np.abs(reg - med[:, None, :]).sum(axis=2) < 45
+    frac = (close & (hsv[..., 1] > 90)).mean(axis=1)
+    run = 0
+    for i, g in enumerate(frac > 0.55):
+        run = run + 1 if g else 0
+        if run >= 4:
+            return y0 + i - 3
+    return H
+
+
 def read_spools(img, belt, bg):
     s = belt.s
     H, W = img.shape[:2]
@@ -797,7 +816,7 @@ def read_spools(img, belt, bg):
     hsv = cv2.cvtColor(img[int(H * 0.8):], cv2.COLOR_BGR2HSV)
     blue = ((hsv[..., 0] >= 100) & (hsv[..., 0] <= 125) & (hsv[..., 1] > 150) & (hsv[..., 2] > 110)).mean(axis=1)
     bar = np.where(blue > 0.7)[0]
-    bottom = int(H * 0.8) + int(bar[0]) if len(bar) else H
+    bottom = int(H * 0.8) + int(bar[0]) if len(bar) else _bottom_bar_any(img)
 
     # Ablage
     rack = []
