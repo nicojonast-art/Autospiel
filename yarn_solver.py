@@ -81,46 +81,69 @@ def front_cell(grid, kind, i):
 
 def run_lap(grid, color, count, lane_list=None):
     """Spielt eine Runde. Veraendert grid! Rueckgabe: (genommen, rest)."""
-    if lane_list is None:
-        lane_list = lanes(*grid.shape)
-    taken = 0
-    if count is None:
-        count = 10 ** 6
-    for kind, i in lane_list:
-        if count <= 0:
-            break
-        cell = front_cell(grid, kind, i)
-        if cell is None:
-            continue
-        r, c = cell
-        if grid[r, c] % KNOT == color:
-            _take(grid, (r, c))
-            count -= 1
-            taken += 1
-    return taken, count
+    taken, rest = run_lap_multi(grid, [(color, count)], lane_list)
+    return taken, rest[0]
 
 
 def run_lap_multi(grid, spools, lane_list=None):
     """Mehrere Spulen direkt hintereinander (Doppelspule): an jeder Bahn
     kommt zuerst die vordere, dann die hintere vorbei. Veraendert grid!
-    spools: [(farbe, zahl), ...]. Rueckgabe: (genommen gesamt, [reste])."""
+    spools: [(farbe, zahl), ...]. Rueckgabe: (genommen gesamt, [reste]).
+    Schnelle Fassung: rechnet auf Python-Listen (viel schneller als numpy
+    bei so kleinen Gittern) und schreibt das Ergebnis zurueck."""
     if lane_list is None:
         lane_list = lanes(*grid.shape)
     rest = [10 ** 6 if n is None else n for _, n in spools]
+    cols_ = [c for c, _ in spools]
+    g = grid.tolist()
+    ny = len(g)
+    nx = len(g[0]) if ny else 0
     taken = 0
+    K = KNOT
     for kind, i in lane_list:
         if not any(r > 0 for r in rest):
             break
-        for k, (color, _) in enumerate(spools):
+        for k in range(len(spools)):
             if rest[k] <= 0:
                 continue
-            cell = front_cell(grid, kind, i)
-            if cell is None:
-                break
-            if grid[cell] % KNOT == color:
-                _take(grid, cell)
+            # vorderste Masche dieser Bahn suchen
+            if kind == "up":
+                r = ny - 1
+                while r >= 0 and g[r][i] < 0:
+                    r -= 1
+                if r < 0:
+                    break
+                c = i
+            elif kind == "down":
+                r = 0
+                while r < ny and g[r][i] < 0:
+                    r += 1
+                if r >= ny:
+                    break
+                c = i
+            elif kind == "left":
+                row = g[i]
+                c = nx - 1
+                while c >= 0 and row[c] < 0:
+                    c -= 1
+                if c < 0:
+                    break
+                r = i
+            else:
+                row = g[i]
+                c = 0
+                while c < nx and row[c] < 0:
+                    c += 1
+                if c >= nx:
+                    break
+                r = i
+            v = g[r][c]
+            if v % K == cols_[k]:
+                g[r][c] = v - K if v >= K else -1
                 rest[k] -= 1
                 taken += 1
+    if taken:
+        grid[:, :] = np.asarray(g, dtype=grid.dtype)
     return taken, rest
 
 
@@ -410,7 +433,77 @@ def _leaf_score(st, lane_list):
     return score
 
 
+def _wide_score(st):
+    """Bewertung fuer die breite Suche: entfernte Maschen, freie Ablage-
+    plaetze und - wichtig - Ablage-Spulen moeglichst leer machen. Die Wurzel
+    belohnt es, eine kleine Spule ganz aufzubrauchen (Platz wird frei),
+    statt von einer grossen etwas abzuzwacken."""
+    free = 0
+    pen = 0.0
+    for r in st.rack:
+        if r is None:
+            free += 1
+        else:
+            pen += (r[1] or 0) ** 0.5
+    return st.removed * 10.0 + free * 25.0 - 20.0 * pen
+
+
+def plan_wide(grid, columns, rack, time_limit=2.0, width=400):
+    """Breite Strahlsuche ueber einzelne Zuege (Spalte oder Ablage), ohne
+    Zwang zum sofortigen Leeren der Ablage. Liefert den besten Pfad."""
+    grid = np.asarray(grid, np.int16)
+    lane_list = lanes(*grid.shape)
+    rk = [_norm(r) for r in rack] + [None] * (RACK_SIZE - len(rack))
+    st0 = State(grid, tuple(tuple(_norm(c) for c in col) for col in columns), tuple(rk[:RACK_SIZE]))
+    deadline = time.time() + time_limit
+    t_layer = time.time()
+    max_width = width
+    beam = [st0]
+    best = None
+    seen = {st0.key()}
+    while beam and time.time() < deadline:
+        nxt = []
+        for st in beam:
+            for mv in moves(st):
+                s2 = apply(st, mv, lane_list)
+                if s2.dead:
+                    continue
+                if cells_left(s2) == 0:
+                    return Plan(list(s2.path), True, 1e9, False)
+                k = s2.key()
+                if k in seen:
+                    continue
+                seen.add(k)
+                nxt.append((_wide_score(s2), s2))
+            if time.time() > deadline:
+                break
+        if not nxt:
+            break
+        nxt.sort(key=lambda t: -t[0])
+        # Breite anpassen: Es sollen noch alle restlichen Zuege (sichtbare
+        # Spulen + Ablage) in die Zeit passen - Tiefe ist wichtiger als Breite.
+        now = time.time()
+        per_parent = (now - t_layer) / max(1, len(beam))
+        t_layer = now
+        left_layers = sum(len(c) for c in nxt[0][1].cols) + sum(1 for r in nxt[0][1].rack if r) + 1
+        if per_parent > 0:
+            width = int(max(15, min(max_width, (deadline - now) / (left_layers * per_parent))))
+        beam = [s for _, s in nxt[:width]]
+        best = nxt[0]
+    if best is None:
+        return Plan([], False, -1e9, True)
+    return Plan(list(best[1].path), False, best[0], False)
+
+
 def plan(grid, columns, rack, time_limit=2.0, beam_width=60, depth=14):
+    p = plan_wide(grid, columns, rack, time_limit=time_limit * 0.8)
+    if p.moves:
+        return p
+    return plan_macro(grid, columns, rack, time_limit=time_limit * 0.2 + 0.1,
+                      beam_width=beam_width, depth=depth)
+
+
+def plan_macro(grid, columns, rack, time_limit=2.0, beam_width=60, depth=14):
     grid = np.asarray(grid, np.int16)
     lane_list = lanes(*grid.shape)
     rk = [_norm(r) for r in rack] + [None] * (RACK_SIZE - len(rack))
