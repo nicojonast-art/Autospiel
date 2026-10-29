@@ -308,10 +308,31 @@ class YarnBot:
         # sind - jede kann im schlimmsten Fall mit Rest in der Ablage landen.
         free = sum(1 for sp in scr.rack if sp is None)
         limit = max(1, min(int(self.cfg["burst"]), free))
-        if p.dead_end or (not p.complete and free <= 3):
-            limit = 1          # knapp/riskant: nach jeder Spule neu nachdenken
-        for mv in p.moves[: limit * 3]:
+        if p.dead_end:
+            limit = 1          # riskant: nach jeder Spule neu nachdenken
+        # Plan nachspielen: Welche Zuege lassen einen Rest in der Ablage?
+        # Gebuendelt (gleichzeitig) werden nach dem ersten Zug nur Spulen, die
+        # laut Plan komplett aufgebraucht werden - alles andere erst nach dem
+        # naechsten Hinsehen (verdeckte Spulen koennen den Plan aendern).
+        leftover = []
+        try:
+            lanes = S.lanes(*grid.shape)
+            rk = [S._norm(r) for r in rack] + [None] * (S.RACK_SIZE - len(rack))
+            st = S.State(np.asarray(grid, np.int16),
+                         tuple(tuple(S._norm(c) for c in col) for col in columns),
+                         tuple(rk[:S.RACK_SIZE]))
+            for mv in p.moves[: limit * 3]:
+                before = sum(1 for r in st.rack if r)
+                st = S.apply(st, mv, lanes)
+                after = sum(1 for r in st.rack if r)
+                gone = 0 if mv.source == "col" else (2 if mv.partner else 1)
+                leftover.append(after > before - gone)
+        except Exception:
+            leftover = []
+        for i, mv in enumerate(p.moves[: limit * 3]):
             if sent >= limit:
+                break
+            if sent > 0 and (i >= len(leftover) or leftover[i]):
                 break
             key = (mv.source, mv.index)
             if mv.source != "col":
