@@ -148,6 +148,9 @@ def _faint_masks(disc_bgr):
     # 1) heller und blasser als die Scheibe (farbige / schwarze Spulen)
     m1 = core & (L > Lmed + 15) & (chroma < max(cmed * 0.8, 12) + 6)
     out.append(m1.astype(np.uint8))
+    # 1b) nur heller (z.B. hellgruene Ziffern auf gruener Scheibe)
+    out.append((core & (L > Lmed + 15)).astype(np.uint8))
+    out.append((core & (L > Lmed + 25)).astype(np.uint8))
     # 2) innerhalb der dunklen Umrandung der Ziffern (weisse Spulen)
     dark = (core & (L < Lmed - 45)).astype(np.uint8)
     if dark.any():
@@ -778,7 +781,7 @@ def _spool_at(img, belt, cx, disc_y, body_y, bg, where, occl_y=None):
         # graue Spulen sehen dem Hintergrund aehnlich - dann zaehlt die lesbare Zahl
         if num is None or conf < 0.4 or (d > 25).mean() < 0.6:
             return None
-    if num is None and _is_surprise(disc):
+    if (num is None or conf < 0.8) and _is_surprise(disc):
         return Spool(UNKNOWN, None, int(cx), int(disc_y + 20 * s), None, where)
     if occluded:
         lab3 = np.median(_lab(body.astype(np.uint8)), axis=0)
@@ -864,7 +867,50 @@ def read_spools(img, belt, bg):
             col.append(sp)
         columns.append(col)
     _find_links(img, belt, columns, rack, bg, bottom - 140 * belt.s)
+    _find_hidden_links(img, belt, columns)
     return columns, rack, bottom
+
+
+def _find_hidden_links(img, belt, columns):
+    """Stab, der von einer Spule schraeg nach unten zu einer (noch) nicht
+    sichtbaren Spule der Nachbarspalte fuehrt: Diese Spule ist erst antippbar,
+    wenn der Partner vorne steht. Markiert sie mit einer Verbindung ohne
+    sichtbaren Partner (Nummer ab 500)."""
+    H, W = img.shape[:2]
+    s = belt.s
+    dy = REF["spool_dy"] * s
+    lid = 500
+    for k, col in enumerate(columns):
+        for r, sp in enumerate(col):
+            if sp.link is not None or sp.lab is None:
+                continue
+            ref = np.asarray(sp.lab, np.float32)
+            found = False
+            for dc in (-1, 1):
+                if found or not (0 <= k + dc < len(columns)) or not columns[k + dc]:
+                    continue
+                tx = columns[k + dc][0].x
+                for dr in (1, 2, 3):
+                    if r + dr < len(columns[k + dc]):
+                        continue        # Ziel sichtbar -> normale Verbindung
+                    ty = sp.y + dr * dy
+                    ok = True
+                    for t in (0.25, 0.35, 0.45):
+                        x = int(sp.x + (tx - sp.x) * t)
+                        y = int(sp.y + 12 * s + (ty - sp.y) * t)
+                        if not (4 <= x < W - 4 and 4 <= y < H - 4):
+                            ok = False
+                            break
+                        p = _lab(img[y - 4:y + 5, x - 4:x + 5])
+                        close = np.mean([color_distance(q, ref) < 25 for q in p])
+                        if close < 0.7:
+                            ok = False
+                            break
+                    if ok:
+                        sp.link = lid
+                        lid += 1
+                        found = True
+                        break
 
 
 def _bar_at(img, bg, pts, r=4):
