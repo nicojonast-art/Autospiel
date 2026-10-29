@@ -74,6 +74,12 @@ public final class Bridge {
     static volatile String status = "";
     /** Echte Bildschirmgroesse (die Aufnahme ist kleiner). */
     public static volatile int screenW = 0;
+    /** Letztes Bildschirmfoto als JPEG (Base64) - fuer die Fehlersuche kopierbar. */
+    public static volatile String debugImage = "";
+
+    public static void setDebugImage(String data) {
+        debugImage = data == null ? "" : data;
+    }
     public static volatile int screenH = 0;
     static volatile Listener listener;
 
